@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Audio Visualizer | AI 视觉导演</title>
+<title>Meloscape</title>
 <style>
 :root {
   color-scheme: light;
@@ -209,13 +209,13 @@ canvas{position:absolute;inset:0;width:100%;height:100%;z-index:1}
         <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
         <i></i><i></i><i></i><i></i><i></i>
       </span>
-      <span class="brand-copy"><span class="brand">AUDIO PRISM</span><span class="brand-sub">看见声音的形状</span></span>
+      <span class="brand-copy"><span class="brand">MELOSCAPE</span><span class="brand-sub">See the shape of sound</span></span>
     </div>
     <div class="topbar-note">LOCAL AUDIO / REAL-TIME VISUAL DIRECTION</div>
     <button class="topbar-action" id="topUpload" type="button">Open audio file ↗</button>
   </header>
 
-  <section class="visual-stage" aria-label="实时音频可视化">
+  <section class="visual-stage" aria-label="Real-time audio visualization">
     <div class="beach-backdrop" aria-hidden="true"></div>
     <canvas id="c"></canvas>
     <div class="stage-label">SOUND LANDSCAPE<strong>Oak shore / warm tide</strong></div>
@@ -226,14 +226,14 @@ canvas{position:absolute;inset:0;width:100%;height:100%;z-index:1}
   <aside class="side-panel">
     <div class="dashboard" id="dashboard">
       <div class="dash-chip" id="chipBPM"><span class="label">BPM</span><span class="value">--</span></div>
-      <div class="dash-chip" id="chipMood"><span class="label">情绪</span><span class="value">--</span></div>
-      <div class="dash-chip" id="chipPreset"><span class="label">景象</span><span class="value">日落</span></div>
-      <div class="dash-chip" id="chipSegment"><span class="label">段落</span><span class="value">--</span></div>
+      <div class="dash-chip" id="chipMood"><span class="label">MOOD</span><span class="value">--</span></div>
+      <div class="dash-chip" id="chipPreset"><span class="label">SCENE</span><span class="value">sunset</span></div>
+      <div class="dash-chip" id="chipSegment"><span class="label">SECTION</span><span class="value">--</span></div>
     </div>
     <div class="song-panel" id="songPanel">
       <div class="song-kicker">NOW VISUALIZING</div>
-      <div class="song-title" id="songTitle">拖入一首歌</div>
-      <div class="song-artist" id="songArtist">AI 视觉导演将自动分析节奏与情绪</div>
+      <div class="song-title" id="songTitle">Drop a song</div>
+      <div class="song-artist" id="songArtist">Meloscape listens and builds the landscape</div>
     </div>
     <div class="structure-wrap">
       <div class="structure-meta"><span>TRACK STRUCTURE</span><span>LIVE</span></div>
@@ -241,15 +241,15 @@ canvas{position:absolute;inset:0;width:100%;height:100%;z-index:1}
     </div>
   </aside>
 
-  <nav class="controls" aria-label="播放器控制">
-    <button class="btn btn-upload" id="btnUpload" aria-label="本地文件">
+  <nav class="controls" aria-label="Player controls">
+    <button class="btn btn-upload" id="btnUpload" aria-label="Local file">
       <span class="btn-label">Upload file<small>LOCAL AUDIO</small></span>
       <span class="control-glyph" aria-hidden="true">↑</span>
     </button>
-    <button class="btn btn-link" id="btnLink" aria-label="粘贴链接">
+    <button class="btn btn-link" id="btnLink" aria-label="Paste link">
       <span class="btn-label">Paste link<small>NETEASE / QQ / KUGOU</small></span><span aria-hidden="true">↗</span>
     </button>
-    <button class="btn btn-play" id="btnPlay" aria-label="播放/暂停">
+    <button class="btn btn-play" id="btnPlay" aria-label="Play / pause">
       <span class="btn-label">Play landscape<small>SPACE TO TOGGLE</small></span>
       <span class="control-glyph" id="iconPlay" aria-hidden="true">▶</span>
       <span class="control-glyph" id="iconPause" aria-hidden="true" style="display:none">Ⅱ</span>
@@ -259,19 +259,19 @@ canvas{position:absolute;inset:0;width:100%;height:100%;z-index:1}
 
 <div class="toast" id="toast"></div>
 
-<!-- 链接弹窗 -->
+<!-- Link dialog -->
 <div class="link-overlay" id="linkOverlay">
   <div class="link-dialog">
-    <div class="dialog-head"><h3>粘贴音乐链接</h3><button class="link-close" id="linkClose" aria-label="关闭">×</button></div>
-    <p>复制公开歌曲链接，我们会在本地解析并生成实时声音景观。</p>
+    <div class="dialog-head"><h3>Paste a music link</h3><button class="link-close" id="linkClose" aria-label="Close">×</button></div>
+    <p>Copy a public song link. Meloscape will parse it locally and build a real-time sound landscape.</p>
     <div class="link-row">
-      <input class="link-input" id="linkInput" placeholder="从客户端复制歌曲链接" />
-      <button class="link-btn" id="linkBtn">解析</button>
+      <input class="link-input" id="linkInput" placeholder="Paste a NetEase / QQ / Kugou link" />
+      <button class="link-btn" id="linkBtn">Parse</button>
     </div>
     <div class="platform-tags">
-      <span class="platform-tag" data-example="https://music.163.com/song?id=25640122">网易云音乐</span>
-      <span class="platform-tag" data-example="https://y.qq.com/n/ryqq/songDetail/000j5P2N4IrNrs">QQ 音乐</span>
-      <span class="platform-tag" data-example="https://www.kugou.com/song/#hash=D5F3C6E9A7B8">酷狗音乐</span>
+      <span class="platform-tag" data-example="https://music.163.com/song?id=25640122">NetEase</span>
+      <span class="platform-tag" data-example="https://y.qq.com/n/ryqq/songDetail/000j5P2N4IrNrs">QQ Music</span>
+      <span class="platform-tag" data-example="https://www.kugou.com/song/#hash=D5F3C6E9A7B8">Kugou</span>
     </div>
   </div>
 </div>
@@ -280,8 +280,8 @@ canvas{position:absolute;inset:0;width:100%;height:100%;z-index:1}
 
 <script>
 // ═══════════════════════════════════════════════════════════
-//  Audio Visualizer — AI Visual Director
-//  实时分析 BPM/情绪 → 5套视觉预设 + 段落感知自动切换
+//  Meloscape
+//  Real-time BPM / mood analysis → 5 visual scenes + segment-aware switching
 // ═══════════════════════════════════════════════════════════
 
 // ── DOM ──
@@ -336,7 +336,7 @@ async function loadFile(file){
   const name=file.name.replace(/\.[^/.]+$/,'');
   const pts=name.split(/[-–—]+/);
   songTitle.textContent=pts.length>=2?(pts[1].trim()||pts[0].trim()):name;
-  songArtist.textContent=pts.length>=2?pts[0].trim():'本地文件';
+  songArtist.textContent=pts.length>=2?pts[0].trim():'local file';
   playFromBuffer();resetAnalysis();
 }
 
@@ -345,7 +345,7 @@ async function loadUrl(url,title,artist,srcLabel){
   // Route audio through local proxy to avoid CORS issues with QQ CDN
   const audioSrc=url.startsWith('http://')||url.startsWith('https://')?audioProxy(url):url;
   const a=new Audio();a.crossOrigin='anonymous';a.src=audioSrc;
-  await new Promise((ok,no)=>{a.addEventListener('canplaythrough',ok,{once:!0});a.addEventListener('error',()=>no(new Error('加载失败')),{once:!0});a.load()});
+  await new Promise((ok,no)=>{a.addEventListener('canplaythrough',ok,{once:!0});a.addEventListener('error',()=>no(new Error('load failed')),{once:!0});a.load()});
   if(source){try{source.disconnect()}catch(e){}}
   source=audioCtx.createMediaElementSource(a);source.connect(analyser);
   mediaEl=a;duration=a.duration||240;
@@ -388,15 +388,15 @@ let segmentProgress=[];
 
 // Mood categories
 const MOODS=['calm','melancholic','neutral','upbeat','energetic'];
-const MOOD_LABELS={calm:'平静',melancholic:'感伤',neutral:'中性',upbeat:'愉悦',energetic:'高能'};
+const MOOD_LABELS={calm:'calm',melancholic:'melancholic',neutral:'neutral',upbeat:'upbeat',energetic:'energetic'};
 
 // Presets
 const PRESETS=['neon','golden','deepsea','fractal','ink'];
-const PRESET_LABELS={neon:'余晖脉冲',golden:'金色潮汐',deepsea:'静海晚风',fractal:'像素棕榈',ink:'橡树影子'};
+const PRESET_LABELS={neon:'sunset pulse',golden:'tidal glow',deepsea:'evening breeze',fractal:'pixel palms',ink:'oak shadows'};
 
 // Segment types
 const SEGMENTS=['intro','verseA','verseB','chorus','bridge','outro'];
-const SEGMENT_LABELS={intro:'前奏',verseA:'主歌A',verseB:'主歌B',chorus:'副歌',bridge:'桥段',outro:'尾奏'};
+const SEGMENT_LABELS={intro:'intro',verseA:'verse A',verseB:'verse B',chorus:'chorus',bridge:'bridge',outro:'outro'};
 
 function resetAnalysis(){
   energyHistory.length=0;centroidHistory.length=0;onsetHistory.length=0;
@@ -864,15 +864,15 @@ function audioProxy(url){return`/api/audio?url=${encodeURIComponent(url)}`}
 function parseMusicUrl(url){
   if(/music\.163\.com|163cn\.tv/.test(url)){
     const m=url.match(/[?&]id=(\d+)/)||url.match(/song[\/\:](\d+)/)||url.match(/\/(\d+)\.mp3/)||url.match(/song\/(\d+)/);
-    return m?{platform:"netease",id:m[1],label:"网易云音乐"}:null;
+    return m?{platform:"netease",id:m[1],label:"NetEase"}:null;
   }
   if(/y\.qq\.com|c\.y\.qq\.com|i\.y\.qq\.com|\.qq\.com.*song/.test(url)){
     const m=url.match(/songDetail\/(\w+)/)||url.match(/songmid=([A-Za-z0-9]+)/)||url.match(/songid=([A-Za-z0-9]+)/)||url.match(/t\d+\.kugou\.com.*id=(\d+)/);
-    return m?{platform:"qq",id:m[1],label:"QQ音乐"}:null;
+    return m?{platform:"qq",id:m[1],label:"QQ Music"}:null;
   }
   if(/kugou\.com/.test(url)){
     const m=url.match(/hash=([A-F0-9]+)/i)||url.match(/id=(\d+)/)||url.match(/hash=([a-f0-9]+)/i);
-    return m?{platform:"kugou",id:m[1],label:"酷狗音乐"}:null;
+    return m?{platform:"kugou",id:m[1],label:"Kugou"}:null;
   }
   return null;
 }
@@ -907,69 +907,69 @@ async function neteaseGetUrl(songId){
 }
 
 async function resolveAndPlay(url, shareText=''){
-  const parsed=parseMusicUrl(url);if(!parsed)throw new Error('不支持的音乐平台链接');
+  const parsed=parseMusicUrl(url);if(!parsed)throw new Error('unsupported music platform link');
   songPanel.style.opacity='1';
   let songname='',singer='',label=parsed.label;
   const shareInfo=shareText?parseNetEaseShareText(shareText):null;
 
   async function tryQQAndPlay(snm,sgr){
-    showToast('QQ 曲库搜索: '+snm+(sgr?' - '+sgr:''));
+    showToast('QQ search: '+snm+(sgr?' - '+sgr:''));
     let qq=await qqSearch(snm+(sgr?' '+sgr:''));
     if(!qq.length&&sgr){qq=await qqSearch(snm)}
-    if(!qq.length)throw new Error('QQ曲库中未找到「'+snm+'」');
-    showToast('获取播放链接...');
-    const pu=await qqGetVkey(qq[0].songmid);if(!pu)throw new Error('获取播放链接失败');
-    showToast('QQ 音乐播放: '+snm+' - '+(sgr||qq[0].singer));
+    if(!qq.length)throw new Error('not found in QQ library: '+snm);
+    showToast('fetching playback link...');
+    const pu=await qqGetVkey(qq[0].songmid);if(!pu)throw new Error('failed to fetch playback link');
+    showToast('QQ playing: '+snm+' - '+(sgr||qq[0].singer));
     await loadUrl(pu,snm,sgr||qq[0].singer,label);
   }
 
   if(parsed.platform==='qq'){
-    showToast('QQ 搜索中...');
-    const r=await qqSearch(parsed.id);if(!r.length)throw new Error('未找到该歌曲');
-    const pu=await qqGetVkey(r[0].songmid);if(!pu)throw new Error('获取播放链接失败');
-    showToast('开始播放: '+r[0].songname);
+    showToast('searching QQ...');
+    const r=await qqSearch(parsed.id);if(!r.length)throw new Error('song not found');
+    const pu=await qqGetVkey(r[0].songmid);if(!pu)throw new Error('failed to fetch playback link');
+    showToast('now playing: '+r[0].songname);
     await loadUrl(pu,r[0].songname,r[0].singer,label);
   }else if(parsed.platform==='netease'){
-    if(shareInfo){songname=shareInfo.songname;singer=shareInfo.artist;showToast('从分享文本识别: '+songname+' - '+singer)}
+    if(shareInfo){songname=shareInfo.songname;singer=shareInfo.artist;showToast('identified from share text: '+songname+' - '+singer)}
     else{
-      showToast('查询歌曲信息...');
+      showToast('looking up song info...');
       try{
         const drResp=await fetch(proxy('https://netease-cloud-music-api-alpha-dun.vercel.app/song/detail?ids='+parsed.id));
         const dd=await drResp.json();const s=dd.songs?.[0];
-        if(s&&s.name){songname=s.name;singer=(s.ar||[]).map(a=>a.name).join('/');showToast('已识别: '+songname+' - '+singer)}
+        if(s&&s.name){songname=s.name;singer=(s.ar||[]).map(a=>a.name).join('/');showToast('identified: '+songname+' - '+singer)}
       }catch(e){console.error('Vercel API failed:',e)}
       if(!songname){
         try{
           const titleResp=await fetch('/api/163-title?id='+parsed.id);
           const titleData=await titleResp.json();
-          if(titleData.songname&&titleData.songname!=='网易云音乐'){songname=titleData.songname;singer=titleData.artist||'';showToast('网页识别: '+songname)}
+          if(titleData.songname&&titleData.songname!=='网易云音乐'){songname=titleData.songname;singer=titleData.artist||'';showToast('web identified: '+songname)}
         }catch(e){console.error('163 title scrape failed',e)}
       }
       if(!songname){
-        showToast('备用方案: Vercel 搜索...');
+        showToast('fallback: Vercel search...');
         try{
           const sr=await fetch(proxy('https://netease-cloud-music-api-alpha-dun.vercel.app/search?keywords='+parsed.id+'&limit=3'));
           const sd=await sr.json();const ss=sd.result?.songs?.[0];
-          if(ss&&ss.name){songname=ss.name;singer=(ss.ar||[]).map(a=>a.name).join('/');showToast('搜索识别: '+songname+' - '+singer)}
+          if(ss&&ss.name){songname=ss.name;singer=(ss.ar||[]).map(a=>a.name).join('/');showToast('search identified: '+songname+' - '+singer)}
         }catch(e){console.error('Vercel search failed:',e)}
       }
     }
-    if(!songname)throw new Error('无法识别歌曲信息。试试在客户端右键 → 「复制」（不要「复制链接」）');
-    showToast('尝试网易云直链...');
+    if(!songname)throw new Error('cannot identify song. Try right-click → Copy in the music app (not Copy Link)');
+    showToast('trying NetEase direct link...');
     const neteaseUrl=await neteaseGetUrl(parsed.id);
     if(neteaseUrl){
-      showToast('网易云播放: '+songname);
+      showToast('NetEase playing: '+songname);
       await loadUrl(neteaseUrl,songname,singer,label);
     }else{
       await tryQQAndPlay(songname,singer);
     }
   }else if(parsed.platform==='kugou'){
     const kr=await fetch(proxy(`https://www.kugou.com/yy/index.php?r=play/getdata&hash=${parsed.id}&format=json`));
-    const kd=await kr.json();if(!kd.data)throw new Error('未找到酷狗歌曲');
+    const kd=await kr.json();if(!kd.data)throw new Error('Kugou song not found');
     songname=kd.data.song_name||kd.data.songname;singer=kd.data.author_name||kd.data.singername;
     const qq=await qqSearch(songname+' '+singer);
-    if(!qq.length)throw new Error('在曲库中未找到可播放版本');
-    const pu=await qqGetVkey(qq[0].songmid);if(!pu)throw new Error('获取播放链接失败');
+    if(!qq.length)throw new Error('no playable version found');
+    const pu=await qqGetVkey(qq[0].songmid);if(!pu)throw new Error('failed to fetch playback link');
     await loadUrl(pu,songname,singer,label);
   }
 }
@@ -986,10 +986,9 @@ async function handleMusicInput(text){
   if(share){
     try{
       const qq=await qqSearch(share.songname+' '+share.artist);
-      if(!qq.length)throw new Error('在曲库中未找到可播放版本');
-      const pu=await qqGetVkey(qq[0].songmid);
-      if(!pu)throw new Error('获取播放链接失败');
-      await loadUrl(pu,share.songname,share.artist,'网易云音乐');
+      if(!qq.length)throw new Error('no playable version found');
+      const pu=await qqGetVkey(qq[0].songmid);if(!pu)throw new Error('failed to fetch playback link');
+      await loadUrl(pu,share.songname,share.artist,'NetEase');
       return!0;
     }catch(e){showToast(e.message,!0);return!1}
   }
@@ -1010,10 +1009,10 @@ linkBtn.addEventListener('click',submitLink);
 
 async function submitLink(){
   const t=linkInput.value.trim();if(!t)return;
-  linkBtn.disabled=!0;linkBtn.textContent='解析中…';
-  try{const ok=await handleMusicInput(t);if(ok){linkOverlay.classList.remove('open');linkInput.value=''}else showToast('未识别到音乐链接',!0)}
+  linkBtn.disabled=!0;linkBtn.textContent='parsing…';
+  try{const ok=await handleMusicInput(t);if(ok){linkOverlay.classList.remove('open');linkInput.value=''}else showToast('unrecognized music link',!0)}
   catch(e){showToast(e.message,!0)}
-  finally{linkBtn.disabled=!1;linkBtn.textContent='解析'}
+  finally{linkBtn.disabled=!1;linkBtn.textContent='Parse'}
 }
 
 document.querySelectorAll('.platform-tag').forEach(t=>{
@@ -1022,7 +1021,7 @@ document.querySelectorAll('.platform-tag').forEach(t=>{
 
 fileInput.addEventListener('change',async e=>{
   const f=e.target.files[0];
-  if(f)try{await loadFile(f);showToast('已加载: '+f.name)}catch(err){showToast('文件加载失败: '+err.message,!0)}
+  if(f)try{await loadFile(f);showToast('loaded: '+f.name)}catch(err){showToast('file load failed: '+err.message,!0)}
 });
 
 document.addEventListener('keydown',e=>{
@@ -1039,18 +1038,18 @@ document.addEventListener('drop',async e=>{
   e.preventDefault();dc=0;document.body.style.outline='';
   const f=e.dataTransfer.files;
   if(f?.length>0&&f[0].type.startsWith('audio/')){
-    try{await loadFile(f[0]);showToast('已加载: '+f[0].name)}catch(err){showToast('加载失败: '+err.message,!0)}
+    try{await loadFile(f[0]);showToast('loaded: '+f[0].name)}catch(err){showToast('load failed: '+err.message,!0)}
     return;
   }
   const t=e.dataTransfer.getData('text/plain')||e.dataTransfer.getData('text/uri-list');
-  if(t){const ok=await handleMusicInput(t);if(!ok)showToast('未识别到音乐链接',!0)}
+  if(t){const ok=await handleMusicInput(t);if(!ok)showToast('unrecognized music link',!0)}
 });
 
 // Paste
 document.addEventListener('paste',async e=>{
   if(document.activeElement===linkInput)return;
   const t=e.clipboardData?.getData('text/plain');if(!t)return;
-  if(t.match(/https?:\/\/[^\s<>"]+/)||t.includes('单曲')||t.includes('歌曲')){e.preventDefault();const ok=await handleMusicInput(t);if(!ok)showToast('未识别到音乐链接（右键 → 复制，不要复制链接）',!0)}
+  if(t.match(/https?:\/\/[^\s<>"]+/)||t.includes('单曲')||t.includes('歌曲')){e.preventDefault();const ok=await handleMusicInput(t);if(!ok)showToast('unrecognized music link (right-click → Copy, not Copy Link)',!0)}
 });
 
 // ── Start ──

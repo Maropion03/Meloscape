@@ -1,4 +1,4 @@
-// Audio Visualizer — Local Server with API Proxy
+// Meloscape — Local Server with API Proxy
 // Serves static files + proxies QQ/163/Kugou API requests
 
 const http = require('http');
@@ -115,7 +115,7 @@ function fetch163SongTitle(songId) {
               }
             }
           }
-          resolve({ artist: artist || '未知', songname });
+          resolve({ artist: artist || 'Unknown', songname });
         } else {
           // Last resort: <title> tag
           const m = body.match(/<title>([^<]+)<\/title>/);
@@ -125,7 +125,7 @@ function fetch163SongTitle(songId) {
             if (parts.length >= 2) {
               resolve({ artist: parts[0].trim(), songname: parts.slice(1).join(' - ').trim() });
             } else {
-              resolve({ artist: '未知', songname: title });
+              resolve({ artist: 'Unknown', songname: title });
             }
           } else {
             resolve(null);
@@ -234,7 +234,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`🎵 Audio Visualizer → http://localhost:${PORT}`);
-  console.log('   拖入歌曲链接或 Ctrl+V 粘贴');
-  console.log('   Ctrl+C 停止');
+  console.log(`🎵 Meloscape → http://localhost:${PORT}`);
+  console.log('   Paste a music link or press Ctrl+V');
+  console.log('   Ctrl+C to stop');
 });
