@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Audio Visualizer | AI 视觉导演</title>
+<style>
+:root {
+  color-scheme: light;
+  --paper: #f7f3e8;
+  --paper-strong: #fff9e9;
+  --ink: #21170f;
+  --muted: #776553;
+  --line: rgba(55, 36, 20, 0.2);
+  --line-strong: rgba(55, 36, 20, 0.45);
+  --orange: #f06424;
+  --amber: #f59d24;
+  --sun: #f8c84a;
+  --red: #bd301d;
+  --brown: #4a2b1b;
+  --radius: 0px;
+  --display: "Arial Narrow", "Helvetica Neue", "PingFang SC", sans-serif;
+  --mono: "SFMono-Regular", "IBM Plex Mono", "Roboto Mono", monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;min-height:100%;background:var(--paper)}
+body{
+  color:var(--ink);font-family:var(--display);overflow:hidden;height:100dvh;
+  user-select:none;-webkit-user-select:none;
+}
+button,input{font:inherit}
+button{border-radius:var(--radius)}
+.app-shell{
+  position:relative;display:grid;height:100dvh;min-height:560px;
+  grid-template-columns:minmax(0,1fr) clamp(290px,28vw,410px);
+  grid-template-rows:56px minmax(0,1fr) 72px;
+  background:var(--paper);isolation:isolate;
+}
+.topbar{
+  grid-column:1/-1;display:grid;grid-template-columns:auto 1fr auto;
+  align-items:stretch;border-bottom:1px solid var(--line-strong);z-index:20;background:var(--paper);
+}
+.brand-lockup{display:flex;align-items:center;border-right:1px solid var(--line);min-width:260px}
+.pixel-mark{
+  width:56px;height:55px;display:grid;grid-template-columns:repeat(5,7px);
+  grid-template-rows:repeat(5,7px);gap:1px;align-content:center;justify-content:center;
+  border-right:1px solid var(--line);
+}
+.pixel-mark i{display:block;background:transparent}
+.pixel-mark i:nth-child(3),.pixel-mark i:nth-child(6),.pixel-mark i:nth-child(7),
+.pixel-mark i:nth-child(9),.pixel-mark i:nth-child(10),.pixel-mark i:nth-child(11),
+.pixel-mark i:nth-child(13),.pixel-mark i:nth-child(15),.pixel-mark i:nth-child(16),
+.pixel-mark i:nth-child(17),.pixel-mark i:nth-child(18),.pixel-mark i:nth-child(19),
+.pixel-mark i:nth-child(23){background:linear-gradient(180deg,var(--sun),var(--orange))}
+.brand-copy{padding:0 18px;line-height:1}
+.brand{font-weight:800;font-size:15px;letter-spacing:-.02em}
+.brand-sub{margin-top:6px;font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--muted)}
+.topbar-note{display:flex;align-items:center;padding:0 20px;font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--muted)}
+.topbar-action{
+  min-width:170px;border:0;border-left:1px solid var(--line);background:var(--ink);color:var(--paper);
+  padding:0 20px;cursor:pointer;font-weight:700;letter-spacing:.01em;text-align:left;
+  transition:background .18s ease,color .18s ease;
+}
+.topbar-action:hover{background:var(--orange);color:var(--ink)}
+.visual-stage{
+  position:relative;grid-column:1;grid-row:2;overflow:hidden;border-right:1px solid var(--line-strong);
+  background:var(--paper);
+}
+.beach-backdrop{
+  position:absolute;inset:0;background:
+    linear-gradient(90deg,rgba(247,243,232,.72),rgba(247,243,232,.32) 48%,rgba(247,243,232,.56)),
+    url("assets/pixel-beach-oak-palms.png") center/cover no-repeat;
+  opacity:.84;filter:saturate(.82) contrast(.92);z-index:0;
+}
+.beach-backdrop::after{
+  content:"";position:absolute;inset:0;background:
+    linear-gradient(rgba(58,37,20,.09) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(58,37,20,.09) 1px,transparent 1px);
+  background-size:40px 40px;mix-blend-mode:multiply;
+}
+canvas{position:absolute;inset:0;width:100%;height:100%;z-index:1}
+.stage-label{
+  position:absolute;z-index:3;top:20px;left:20px;font:10px/1.4 var(--mono);
+  letter-spacing:.1em;color:var(--brown);text-transform:uppercase;
+}
+.stage-label strong{display:block;font:700 15px/1.2 var(--display);letter-spacing:0;text-transform:none;color:var(--ink);margin-top:5px}
+.preset-indicator{
+  position:absolute;z-index:3;right:18px;top:18px;display:flex;flex-direction:column;
+  align-items:flex-end;gap:2px;pointer-events:none;
+}
+.preset-tag{
+  padding:3px 6px;font:9px/1.2 var(--mono);letter-spacing:.06em;color:rgba(55,36,20,.48);
+  background:rgba(247,243,232,.48);transition:color .35s ease,background .35s ease;
+}
+.preset-tag.current{color:var(--ink);background:var(--sun);font-weight:700}
+.tempo-ring{
+  position:absolute;left:50%;top:50%;z-index:3;pointer-events:none;
+  width:12px;height:12px;transform:translate(-50%,-50%) scale(1);background:var(--orange);opacity:0;
+}
+.tempo-ring.beat{animation:pixelBeat .36s steps(4,end)}
+@keyframes pixelBeat{0%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(9)}}
+.side-panel{
+  grid-column:2;grid-row:2;display:grid;grid-template-rows:auto 1fr auto;min-width:0;background:rgba(247,243,232,.96);
+}
+.dashboard{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--line-strong)}
+.dash-chip{
+  min-height:67px;padding:14px 16px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);
+  display:flex;flex-direction:column;justify-content:space-between;transition:background .25s ease;
+}
+.dash-chip:nth-child(even){border-right:0}
+.dash-chip:nth-child(n+3){border-bottom:0}
+.dash-chip .label{font:9px/1 var(--mono);text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.dash-chip .value{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums}
+.dash-chip.active{background:linear-gradient(135deg,rgba(248,200,74,.35),rgba(240,100,36,.12))}
+.song-panel{
+  padding:clamp(28px,5vh,58px) 28px 24px;display:flex;flex-direction:column;justify-content:flex-end;min-height:0;
+  border-bottom:1px solid var(--line-strong);pointer-events:none;
+}
+.song-kicker{font:10px/1.4 var(--mono);letter-spacing:.1em;color:var(--muted);margin-bottom:auto}
+.song-title{
+  max-width:10ch;font-size:clamp(36px,4.6vw,68px);font-weight:800;letter-spacing:-.055em;line-height:.88;
+  overflow-wrap:anywhere;
+}
+.song-artist{margin-top:18px;font:12px/1.55 var(--mono);color:var(--brown);max-width:30ch}
+.structure-wrap{padding:14px 18px 17px}
+.structure-meta{display:flex;justify-content:space-between;margin-bottom:9px;font:9px/1 var(--mono);letter-spacing:.08em;color:var(--muted)}
+.structure-bar{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:2px;height:8px;overflow:hidden}
+.segment{height:8px;background:rgba(74,43,27,.12);transition:background .25s ease}
+.segment.active{background:var(--orange)}
+.segment.past{background:var(--amber)}
+.controls{
+  grid-column:1/-1;grid-row:3;display:grid;grid-template-columns:1fr 1fr 1.25fr;
+  border-top:1px solid var(--line-strong);z-index:20;background:var(--paper);
+}
+.btn{
+  min-width:0;border:0;border-right:1px solid var(--line-strong);background:transparent;color:var(--ink);
+  cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:0 22px;
+  font-size:14px;font-weight:700;transition:background .18s ease,color .18s ease,transform .12s ease;
+}
+.btn:last-child{border-right:0}
+.btn:hover{background:var(--sun)}
+.btn:active{transform:translateY(1px)}
+.btn:focus-visible,.topbar-action:focus-visible,.link-btn:focus-visible,.link-close:focus-visible,.link-input:focus-visible{outline:3px solid var(--orange);outline-offset:-3px}
+.control-glyph{font:700 20px/1 var(--mono)}
+.btn-play{background:linear-gradient(110deg,var(--sun),var(--orange));font-size:17px}
+.btn-play:hover{background:var(--ink);color:var(--paper)}
+.btn-label small{display:block;margin-top:3px;font:8px/1 var(--mono);letter-spacing:.09em;color:inherit;opacity:.62}
+.toast{
+  position:fixed;right:18px;top:74px;z-index:60;width:min(360px,calc(100vw - 36px));
+  padding:14px 16px;border:1px solid var(--line-strong);border-left:8px solid var(--orange);
+  background:var(--paper-strong);font:12px/1.45 var(--mono);opacity:0;transform:translateY(-10px);
+  transition:opacity .2s ease,transform .2s ease;pointer-events:none;white-space:pre-line;
+}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast.error{border-left-color:var(--red);color:var(--red)}
+.link-overlay{
+  position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:18px;
+  background:rgba(33,23,15,.58);opacity:0;pointer-events:none;transition:opacity .2s ease;
+}
+.link-overlay.open{opacity:1;pointer-events:all}
+.link-dialog{background:var(--paper);border:1px solid var(--ink);width:100%;max-width:590px;position:relative}
+.dialog-head{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line-strong);min-height:54px;padding-left:20px}
+.link-dialog h3{font-size:17px;font-weight:800}
+.link-dialog p{font-size:13px;color:var(--muted);margin:20px 20px 14px;line-height:1.5}
+.link-row{display:grid;grid-template-columns:1fr auto;margin:0 20px 18px}
+.link-input{
+  min-width:0;background:var(--paper-strong);border:1px solid var(--line-strong);padding:13px 14px;color:var(--ink);
+  font:12px/1.2 var(--mono);outline:none;
+}
+.link-input:focus{border-color:var(--orange)}
+.link-btn{padding:0 22px;border:1px solid var(--ink);border-left:0;background:var(--ink);color:var(--paper);font-weight:700;cursor:pointer}
+.link-btn:hover{background:var(--orange);color:var(--ink)}
+.link-btn:disabled{opacity:.45;cursor:not-allowed}
+.link-close{width:54px;align-self:stretch;border:0;border-left:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer;font-size:18px}
+.link-close:hover{background:var(--sun)}
+.platform-tags{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--line-strong)}
+.platform-tag{padding:14px 12px;border-right:1px solid var(--line);font:10px/1.2 var(--mono);color:var(--muted);cursor:pointer;text-align:center}
+.platform-tag:last-child{border-right:0}
+.platform-tag:hover{background:var(--sun);color:var(--ink)}
+@media(max-width:760px){
+  .app-shell{grid-template-columns:1fr;grid-template-rows:48px minmax(230px,45vh) minmax(0,1fr) 128px;min-height:640px}
+  .topbar{grid-column:1;grid-row:1}
+  .brand-lockup{min-width:0;border-right:0}.pixel-mark{width:48px;height:47px}.brand-copy{padding:0 12px}
+  .brand-sub,.topbar-note{display:none}.topbar-action{min-width:120px;padding:0 13px;font-size:12px}
+  .visual-stage{grid-column:1;grid-row:2;border-right:0;border-bottom:1px solid var(--line-strong)}
+  .side-panel{grid-column:1;grid-row:3;grid-template-columns:44% 56%;grid-template-rows:1fr auto}
+  .dashboard{grid-column:1;grid-row:1/3;border-bottom:0;border-right:1px solid var(--line-strong)}
+  .dash-chip{min-height:54px;padding:10px}.dash-chip .value{font-size:14px}
+  .song-panel{grid-column:2;grid-row:1;padding:18px 16px 12px}.song-kicker{margin-bottom:20px}
+  .song-title{font-size:clamp(27px,9vw,42px);line-height:.92}.song-artist{font-size:10px;margin-top:10px}
+  .structure-wrap{grid-column:2;grid-row:2;padding:10px 12px 12px}
+  .controls{grid-column:1;grid-row:4;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
+  .btn{padding:0 14px;border-bottom:1px solid var(--line-strong);font-size:12px}.btn:nth-child(2){border-right:0}.btn-play{grid-column:1/-1;border-bottom:0;font-size:15px}
+  .stage-label{top:12px;left:12px}.preset-indicator{top:10px;right:9px}.preset-tag:not(.current){display:none}
+  .link-row{grid-template-columns:1fr}.link-btn{height:46px;border-left:1px solid var(--ink);border-top:0}
+  .platform-tags{grid-template-columns:1fr}.platform-tag{border-right:0;border-bottom:1px solid var(--line)}.platform-tag:last-child{border-bottom:0}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+<main class="app-shell">
+  <header class="topbar">
+    <div class="brand-lockup">
+      <span class="pixel-mark" aria-hidden="true">
+        <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+        <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+        <i></i><i></i><i></i><i></i><i></i>
+      </span>
+      <span class="brand-copy"><span class="brand">AUDIO PRISM</span><span class="brand-sub">看见声音的形状</span></span>
+    </div>
+    <div class="topbar-note">LOCAL AUDIO / REAL-TIME VISUAL DIRECTION</div>
+    <button class="topbar-action" id="topUpload" type="button">Open audio file ↗</button>
+  </header>
+
+  <section class="visual-stage" aria-label="实时音频可视化">
+    <div class="beach-backdrop" aria-hidden="true"></div>
+    <canvas id="c"></canvas>
+    <div class="stage-label">SOUND LANDSCAPE<strong>Oak shore / warm tide</strong></div>
+    <div class="preset-indicator" id="presetIndicators"></div>
+    <div class="tempo-ring" id="tempoRing"></div>
+  </section>
+
+  <aside class="side-panel">
+    <div class="dashboard" id="dashboard">
+      <div class="dash-chip" id="chipBPM"><span class="label">BPM</span><span class="value">--</span></div>
+      <div class="dash-chip" id="chipMood"><span class="label">情绪</span><span class="value">--</span></div>
+      <div class="dash-chip" id="chipPreset"><span class="label">景象</span><span class="value">日落</span></div>
+      <div class="dash-chip" id="chipSegment"><span class="label">段落</span><span class="value">--</span></div>
+    </div>
+    <div class="song-panel" id="songPanel">
+      <div class="song-kicker">NOW VISUALIZING</div>
+      <div class="song-title" id="songTitle">拖入一首歌</div>
+      <div class="song-artist" id="songArtist">AI 视觉导演将自动分析节奏与情绪</div>
+    </div>
+    <div class="structure-wrap">
+      <div class="structure-meta"><span>TRACK STRUCTURE</span><span>LIVE</span></div>
+      <div class="structure-bar" id="structureBar"></div>
+    </div>
+  </aside>
+
+  <nav class="controls" aria-label="播放器控制">
+    <button class="btn btn-upload" id="btnUpload" aria-label="本地文件">
+      <span class="btn-label">Upload file<small>LOCAL AUDIO</small></span>
+      <span class="control-glyph" aria-hidden="true">↑</span>
+    </button>
+    <button class="btn btn-link" id="btnLink" aria-label="粘贴链接">
+      <span class="btn-label">Paste link<small>NETEASE / QQ / KUGOU</small></span><span aria-hidden="true">↗</span>
+    </button>
+    <button class="btn btn-play" id="btnPlay" aria-label="播放/暂停">
+      <span class="btn-label">Play landscape<small>SPACE TO TOGGLE</small></span>
+      <span class="control-glyph" id="iconPlay" aria-hidden="true">▶</span>
+      <span class="control-glyph" id="iconPause" aria-hidden="true" style="display:none">Ⅱ</span>
+    </button>
+  </nav>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<!-- 链接弹窗 -->
+<div class="link-overlay" id="linkOverlay">
+  <div class="link-dialog">
+    <div class="dialog-head"><h3>粘贴音乐链接</h3><button class="link-close" id="linkClose" aria-label="关闭">×</button></div>
+    <p>复制公开歌曲链接，我们会在本地解析并生成实时声音景观。</p>
+    <div class="link-row">
+      <input class="link-input" id="linkInput" placeholder="从客户端复制歌曲链接" />
+      <button class="link-btn" id="linkBtn">解析</button>
+    </div>
+    <div class="platform-tags">
+      <span class="platform-tag" data-example="https://music.163.com/song?id=25640122">网易云音乐</span>
+      <span class="platform-tag" data-example="https://y.qq.com/n/ryqq/songDetail/000j5P2N4IrNrs">QQ 音乐</span>
+      <span class="platform-tag" data-example="https://www.kugou.com/song/#hash=D5F3C6E9A7B8">酷狗音乐</span>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="fileInput" accept="audio/*" style="display:none">
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  Audio Visualizer — AI Visual Director
+//  实时分析 BPM/情绪 → 5套视觉预设 + 段落感知自动切换
+// ═══════════════════════════════════════════════════════════
+
+// ── DOM ──
+const $=id=>document.getElementById(id);
+const c=$('c'),ctx=c.getContext('2d');
+const songTitle=$('songTitle'),songArtist=$('songArtist'),songPanel=$('songPanel');
+const btnPlay=$('btnPlay'),btnUpload=$('btnUpload'),btnLink=$('btnLink');
+const topUpload=$('topUpload');
+const iconPlay=$('iconPlay'),iconPause=$('iconPause');
+const tempoRing=$('tempoRing'),toast=$('toast');
+const fileInput=$('fileInput');
+const linkOverlay=$('linkOverlay'),linkInput=$('linkInput'),linkBtn=$('linkBtn'),linkClose=$('linkClose');
+
+// ── Canvas ──
+let W,H,dpr;
+function resize(){
+  dpr=Math.min(devicePixelRatio||1,2);
+  const stage=c.parentElement.getBoundingClientRect();
+  W=Math.max(1,stage.width);H=Math.max(1,stage.height);
+  c.width=W*dpr;c.height=H*dpr;
+  c.style.width=W+'px';c.style.height=H+'px';
+  ctx.setTransform(1,0,0,1,0,0);ctx.scale(dpr,dpr);
+}
+addEventListener('resize',resize);resize();
+
+// ── Toast ──
+let toastT;
+function showToast(msg,err=!1){
+  clearTimeout(toastT);toast.textContent=msg;
+  toast.className='toast show'+(err?' error':'');
+  toastT=setTimeout(()=>toast.className='toast',3500);
+}
+
+// ═══════════════════════════════════════════
+//  Audio Engine
+// ═══════════════════════════════════════════
+let audioCtx,analyser,source=null,audioBuffer=null,mediaEl=null;
+let isPlaying=!1,pauseOffset=0,startTime=0,duration=0;
+let freqData,timeData;
+const FFT=2048;
+
+async function initAudio(){
+  if(!audioCtx){audioCtx=new(window.AudioContext||window.webkitAudioContext)();analyser=audioCtx.createAnalyser();analyser.fftSize=FFT;analyser.smoothingTimeConstant=0.65;analyser.connect(audioCtx.destination);freqData=new Float32Array(analyser.frequencyBinCount);timeData=new Float32Array(FFT/2)}
+  if(audioCtx.state==='suspended')await audioCtx.resume();
+}
+
+async function loadFile(file){
+  await initAudio();
+  const buf=await file.arrayBuffer();
+  audioBuffer=await audioCtx.decodeAudioData(buf);
+  duration=audioBuffer.duration;mediaEl=null;
+  const name=file.name.replace(/\.[^/.]+$/,'');
+  const pts=name.split(/[-–—]+/);
+  songTitle.textContent=pts.length>=2?(pts[1].trim()||pts[0].trim()):name;
+  songArtist.textContent=pts.length>=2?pts[0].trim():'本地文件';
+  playFromBuffer();resetAnalysis();
+}
+
+async function loadUrl(url,title,artist,srcLabel){
+  await initAudio();
+  // Route audio through local proxy to avoid CORS issues with QQ CDN
+  const audioSrc=url.startsWith('http://')||url.startsWith('https://')?audioProxy(url):url;
+  const a=new Audio();a.crossOrigin='anonymous';a.src=audioSrc;
+  await new Promise((ok,no)=>{a.addEventListener('canplaythrough',ok,{once:!0});a.addEventListener('error',()=>no(new Error('加载失败')),{once:!0});a.load()});
+  if(source){try{source.disconnect()}catch(e){}}
+  source=audioCtx.createMediaElementSource(a);source.connect(analyser);
+  mediaEl=a;duration=a.duration||240;
+  songTitle.textContent=title;songArtist.textContent=artist;
+  a.play();isPlaying=!0;updatePlayIcon();resetAnalysis();
+  a.addEventListener('ended',()=>{isPlaying=!1;updatePlayIcon()});
+}
+
+function playFromBuffer(){
+  if(source){try{source.stop()}catch(e){}source.disconnect()}
+  source=audioCtx.createBufferSource();source.buffer=audioBuffer;source.connect(analyser);
+  source.start(0,pauseOffset);startTime=audioCtx.currentTime-pauseOffset;
+  isPlaying=!0;updatePlayIcon();
+  source.onended=()=>{if(audioCtx.currentTime-startTime>=duration-.2){pauseOffset=0;isPlaying=!1;updatePlayIcon()}};
+}
+
+function togglePlay(){
+  if(!audioBuffer&&!mediaEl){fileInput.click();return}
+  if(isPlaying){
+    if(mediaEl)mediaEl.pause();
+    else{pauseOffset=audioCtx.currentTime-startTime;try{source.stop()}catch(e){}source.disconnect();source=null}
+    isPlaying=!1;
+  }else{if(mediaEl)mediaEl.play();else playFromBuffer();isPlaying=!0}
+  updatePlayIcon();
+}
+function updatePlayIcon(){iconPlay.style.display=isPlaying?'none':'';iconPause.style.display=isPlaying?'':''}
+
+// ═══════════════════════════════════════════
+//  AI Analysis Engine
+// ═══════════════════════════════════════════
+const ANALYSIS_WINDOW=43; // ~1s at 43fps
+const energyHistory=[];   // RMS energy per frame
+const centroidHistory=[]; // spectral centroid
+const onsetHistory=[];    // onset detection values
+let bpm=0,bpmConfidence=0;
+let currentMood='neutral';
+let currentPreset='neon';
+let currentSegment='intro';
+let segmentProgress=[];
+
+// Mood categories
+const MOODS=['calm','melancholic','neutral','upbeat','energetic'];
+const MOOD_LABELS={calm:'平静',melancholic:'感伤',neutral:'中性',upbeat:'愉悦',energetic:'高能'};
+
+// Presets
+const PRESETS=['neon','golden','deepsea','fractal','ink'];
+const PRESET_LABELS={neon:'余晖脉冲',golden:'金色潮汐',deepsea:'静海晚风',fractal:'像素棕榈',ink:'橡树影子'};
+
+// Segment types
+const SEGMENTS=['intro','verseA','verseB','chorus','bridge','outro'];
+const SEGMENT_LABELS={intro:'前奏',verseA:'主歌A',verseB:'主歌B',chorus:'副歌',bridge:'桥段',outro:'尾奏'};
+
+function resetAnalysis(){
+  energyHistory.length=0;centroidHistory.length=0;onsetHistory.length=0;
+  bpm=0;bpmConfidence=0;currentMood='neutral';currentPreset='neon';currentSegment='intro';
+  segmentProgress=[];
+  updateDashboard();
+}
+
+// ── Frame-level analysis ──
+function analyzeFrame(){
+  if(!analyser){return}
+  analyser.getFloatTimeDomainData(timeData);
+  analyser.getFloatFrequencyData(freqData);
+
+  // RMS energy (dB-normalized to 0-1)
+  let sumSq=0;
+  for(let i=0;i<timeData.length;i++)sumSq+=timeData[i]*timeData[i];
+  const rms=Math.sqrt(sumSq/timeData.length);
+  const energy=Math.min(1,rms*8); // scale up for usability
+
+  // Spectral centroid (0-1 normalized across bins)
+  let wSum=0,sum=0;
+  const nyquist=audioCtx.sampleRate/2;
+  for(let i=0;i<freqData.length;i++){
+    const freq=i*nyquist/freqData.length;
+    const mag=Math.pow(10,freqData[i]/20); // dB → linear
+    if(mag>0.001){wSum+=mag*freq;sum+=mag}
+  }
+  const centroid=sum>0?wSum/sum/nyquist:0.5;
+
+  // Onset detection (spectral flux)
+  let flux=0;
+  if(energyHistory.length>0){
+    const prevEnergy=energyHistory[energyHistory.length-1];
+    flux=Math.max(0,energy-prevEnergy);
+  }
+  const prevFlux=onsetHistory.length>0?onsetHistory[onsetHistory.length-1]:0;
+  const onset=flux>0.05&&flux>prevFlux*1.1?flux:0;
+
+  energyHistory.push(energy);centroidHistory.push(centroid);onsetHistory.push(onset);
+  if(energyHistory.length>ANALYSIS_WINDOW*5){energyHistory.shift();centroidHistory.shift();onsetHistory.shift()}
+
+  // ── BPM estimation (from onset peaks) ──
+  if(onsetHistory.length>ANALYSIS_WINDOW*2){
+    const peaks=[];
+    for(let i=2;i<onsetHistory.length-2;i++){
+      if(onsetHistory[i]>0.02&&onsetHistory[i]>onsetHistory[i-1]&&onsetHistory[i]>onsetHistory[i+1]&&onsetHistory[i]>onsetHistory[i-2]&&onsetHistory[i]>onsetHistory[i+2]){
+        peaks.push(i);
+      }
+    }
+    if(peaks.length>=3){
+      const intervals=[];
+      for(let i=1;i<peaks.length;i++)intervals.push(peaks[i]-peaks[i-1]);
+      // Median interval → BPM (43fps → 60s*43frames/interval)
+      intervals.sort((a,b)=>a-b);
+      const median=intervals[Math.floor(intervals.length/2)];
+      if(median>=8&&median<=120){ // 21-320 BPM range
+        const rawBpm=Math.round((60*43)/median);
+        bpm+=0.15*(rawBpm-bpm); // smoothed
+        bpmConfidence=Math.min(1,bpmConfidence+0.02);
+      }
+    }
+    bpmConfidence=Math.max(0,bpmConfidence-0.003);
+  }
+
+  // ── Mood detection ──
+  const recentEnergy=energyHistory.slice(-ANALYSIS_WINDOW/2).reduce((a,b)=>a+b,0)/Math.max(1,energyHistory.slice(-ANALYSIS_WINDOW/2).length);
+  const recentCentroid=centroidHistory.slice(-ANALYSIS_WINDOW/2).reduce((a,b)=>a+b,0)/Math.max(1,centroidHistory.slice(-ANALYSIS_WINDOW/2).length);
+  // Energy variability
+  const recentSlice=energyHistory.slice(-ANALYSIS_WINDOW);
+  const enVar=recentSlice.length>1?recentSlice.reduce((a,v)=>a+Math.abs(v-(recentSlice.reduce((a,b)=>a+b,0)/recentSlice.length)),0)/recentSlice.length:0;
+
+  if(recentEnergy<0.04){currentMood='calm'}
+  else if(recentEnergy<0.1&&recentCentroid<0.35){currentMood='melancholic'}
+  else if(recentEnergy>0.35&&enVar>0.06){currentMood='energetic'}
+  else if(recentEnergy>0.2&&recentCentroid>0.45){currentMood='upbeat'}
+  else{currentMood='neutral'}
+
+  // ── Preset selection ──
+  const bpmAdjusted=bpmConfidence>0.3?bpm:120;
+  if(currentMood==='energetic')currentPreset='neon';
+  else if(currentMood==='upbeat'&&bpmAdjusted>110)currentPreset='fractal';
+  else if(currentMood==='upbeat'&&recentCentroid<0.45)currentPreset='golden';
+  else if(currentMood==='melancholic')currentPreset='deepsea';
+  else if(currentMood==='calm'&&recentCentroid<0.35)currentPreset='ink';
+  else{currentPreset='golden'}
+
+  // ── Segment detection ──
+  if(audioBuffer||mediaEl){
+    const elapsed=mediaEl?mediaEl.currentTime:(audioCtx.currentTime-startTime);
+    const dur=duration||240;
+    const progress=Math.min(1,elapsed/dur);
+    const recentEnergies=energyHistory.slice(-Math.floor(ANALYSIS_WINDOW/2));
+    const avgEn=recentEnergies.reduce((a,b)=>a+b,0)/Math.max(1,recentEnergies.length);
+    const maxEn=Math.max(...energyHistory,-Infinity);
+
+    if(progress<0.08||avgEn<maxEn*0.2){currentSegment='intro'}
+    else if(progress>0.85&&avgEn<maxEn*0.35){currentSegment='outro'}
+    else if(avgEn>maxEn*0.72){currentSegment='chorus'}
+    else if(avgEn>maxEn*0.5){currentSegment='bridge'}
+    else{
+      // Alternate verse A/B based on rough position
+      currentSegment=progress<0.5?'verseA':'verseB';
+    }
+
+    // Build segment progress for UI bar
+    const totalSegs=Math.max(6,Math.ceil(dur/15));
+    const currentSegIdx=Math.floor(progress*totalSegs);
+    if(segmentProgress.length!==totalSegs){
+      segmentProgress=Array.from({length:totalSegs},(_,i)=>({
+        active:i===currentSegIdx,
+        past:i<currentSegIdx,
+        energy:0.3+Math.sin(i/totalSegs*Math.PI)*0.5
+      }));
+    }
+    for(let i=0;i<segmentProgress.length;i++){
+      segmentProgress[i].active=i===currentSegIdx;
+      segmentProgress[i].past=i<currentSegIdx;
+    }
+  }
+
+  updateDashboard();
+}
+
+function updateDashboard(){
+  const chipBPM=$('chipBPM'),chipMood=$('chipMood'),chipPreset=$('chipPreset'),chipSegment=$('chipSegment');
+  const bpmVal=bpmConfidence>0.3?Math.round(bpm):'--';
+  chipBPM.querySelector('.value').textContent=bpmVal;
+  chipBPM.className=bpmConfidence>0.3?'dash-chip active':'dash-chip';
+  chipMood.querySelector('.value').textContent=MOOD_LABELS[currentMood]||'--';
+  chipMood.className=audioBuffer||mediaEl?'dash-chip active':'dash-chip';
+  chipPreset.querySelector('.value').textContent=PRESET_LABELS[currentPreset];
+  chipPreset.className=audioBuffer||mediaEl?'dash-chip active':'dash-chip';
+  chipSegment.querySelector('.value').textContent=SEGMENT_LABELS[currentSegment]||'--';
+  chipSegment.className=audioBuffer||mediaEl?'dash-chip active':'dash-chip';
+}
+
+// ═══════════════════════════════════════════
+//  Visual Renderer — 5 Presets
+// ═══════════════════════════════════════════
+
+// Inter-preset lerp factor (smooth transitions)
+let presetBlend=1,targetPreset=null,prevPreset='neon';
+const transitionSpeed=0.03;
+
+// Visual state
+let particles=[],lines=[],drops=[],fractals=[],inkStrokes=[];
+const MAX_PARTICLES=300;
+
+// Intensity from segment
+function getSegmentIntensity(){
+  const map={intro:0.25,verseA:0.5,verseB:0.6,chorus:1,bridge:0.75,outro:0.3};
+  return map[currentSegment]||0.5;
+}
+
+// Energy + beat helpers
+let beatFlash=0,beatTimer=0;
+let lastBeat=0;
+
+function detectBeat(){
+  if(onsetHistory.length<2)return;
+  const f=onsetHistory[onsetHistory.length-1];
+  const mean=onsetHistory.slice(-15).reduce((a,b)=>a+b,0)/15;
+  const threshold=mean*2.5+0.03;
+  if(f>threshold&&performance.now()-lastBeat>300){
+    lastBeat=performance.now();beatFlash=1;beatTimer=8;
+    tempoRing.classList.add('beat');
+    setTimeout(()=>tempoRing.classList.remove('beat'),120);
+  }
+}
+
+// ── Particle pool ──
+function seedParticles(){
+  while(particles.length<MAX_PARTICLES){
+    particles.push({
+      x:Math.random()*W,y:Math.random()*H,
+      vx:0,vy:0,life:0.5+Math.random()*0.5,t:Math.random(),
+      hue:0,sat:80,light:60,size:1.5+Math.random()*3
+    });
+  }
+}
+seedParticles();
+
+// ── Render presets ──
+function renderPreset(preset,energy,centroid,intensity){
+  const cx=W/2,cy=H/2;
+  const r=Math.min(W,H)*0.35;
+  const palette={
+    neon:['#bd301d','#f06424','#f8c84a'],
+    golden:['#f06424','#f59d24','#f8c84a'],
+    deepsea:['#4a2b1b','#bd301d','#f59d24'],
+    fractal:['#21170f','#f06424','#f8c84a'],
+    ink:['#4a2b1b','#776553','#f59d24']
+  }[preset]||['#f06424','#f59d24','#f8c84a'];
+  const columns=Math.max(18,Math.min(52,Math.floor(W/24)));
+  const rows=Math.max(8,Math.min(22,Math.floor(H/24)));
+  const gap=Math.max(2,Math.floor(W/500)*2);
+  const cellW=Math.max(5,Math.floor((W*.68)/columns)-gap);
+  const cellH=Math.max(5,Math.floor((H*.48)/rows)-gap);
+  const matrixW=columns*(cellW+gap)-gap;
+  const matrixH=rows*(cellH+gap)-gap;
+  const startX=Math.round((W-matrixW)/2);
+  const startY=Math.round((H-matrixH)/2+H*.05);
+  ctx.save();
+  ctx.imageSmoothingEnabled=false;
+  for(let col=0;col<columns;col++){
+    const normalized=col/Math.max(1,columns-1);
+    const bin=freqData&&freqData.length?Math.min(freqData.length-1,Math.floor(Math.pow(normalized,.72)*freqData.length*.56)):0;
+    const db=freqData&&freqData.length?freqData[bin]:-90;
+    const signal=Math.max(0,Math.min(1,(db+92)/72));
+    const idle=.08+.05*Math.sin(performance.now()*.0014+col*.58);
+    const level=Math.max(idle,signal*intensity+energy*.22);
+    const lit=Math.round(level*rows);
+    for(let row=0;row<rows;row++){
+      const x=startX+col*(cellW+gap);
+      const y=startY+(rows-1-row)*(cellH+gap);
+      if(row<lit){
+        const colorIndex=Math.min(2,Math.floor(row/Math.max(1,rows/3)));
+        ctx.fillStyle=palette[colorIndex];
+        const beatScale=beatFlash>.18&&row===lit-1?Math.min(4,Math.ceil(beatFlash*4)):0;
+        ctx.fillRect(x-beatScale,y-beatScale,cellW+beatScale*2,cellH+beatScale*2);
+      }else{
+        ctx.fillStyle='rgba(74,43,27,.11)';
+        ctx.fillRect(x,y,cellW,cellH);
+      }
+    }
+  }
+  const horizonY=startY+matrixH+Math.max(16,H*.035);
+  ctx.fillStyle='rgba(33,23,15,.72)';
+  ctx.fillRect(startX,horizonY,matrixW,2);
+  const playhead=((performance.now()*.012)%(matrixW+24))-12;
+  ctx.fillStyle=palette[1];
+  ctx.fillRect(startX+playhead,horizonY-3,8,8);
+  ctx.restore();
+  return;
+
+  switch(preset){
+    case 'neon':{
+      // Neon pulses — cyan/magenta geometrical lines + energy rings
+      const rings=Math.floor(3+energy*5+beatFlash*2);
+      for(let i=0;i<rings;i++){
+        const ri=r*(0.4+1.2/rings*i)+beatFlash*30*Math.sin(i+performance.now()*.001);
+        const a=0.08+energy*0.12*(1-i/rings);
+        const grad=ctx.createRadialGradient(cx,cy,ri*0.7,cx,cy,ri);
+        grad.addColorStop(0,'rgba(0,240,255,0)');
+        grad.addColorStop(0.7,`rgba(0,240,255,${a})`);
+        grad.addColorStop(1,'rgba(195,80,255,0)');
+        ctx.fillStyle=grad;ctx.beginPath();ctx.arc(cx,cy,ri,0,Math.PI*2);ctx.fill();
+      }
+      // Angular lines
+      const lines=12+Math.floor(energy*24);
+      for(let i=0;i<lines;i++){
+        const angle=(i/lines)*Math.PI*2+performance.now()*.0003*(i%3+1);
+        const lr=r*(0.6+energy*0.8);
+        const x1=cx+Math.cos(angle)*r*0.25,x2=cx+Math.cos(angle)*lr;
+        const y1=cy+Math.sin(angle)*r*0.25,y2=cy+Math.sin(angle)*lr;
+        const a=0.06+energy*0.1;
+        ctx.strokeStyle=`rgba(0,240,255,${a})`;ctx.lineWidth=1;
+        ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+      }
+      // Center glow
+      const cr=10+energy*50+beatFlash*30;
+      const cg=ctx.createRadialGradient(cx,cy,cr*0.1,cx,cy,cr);
+      cg.addColorStop(0,'rgba(255,255,255,0.6)');cg.addColorStop(0.5,'rgba(0,240,255,0.2)');cg.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.fillStyle=cg;ctx.beginPath();ctx.arc(cx,cy,cr,0,Math.PI*2);ctx.fill();
+      break;
+    }
+    case 'golden':{
+      // Warm flowing particles + golden swirl
+      const swirlTime=performance.now()*.0005;
+      for(let i=0;i<particles.length;i++){
+        const p=particles[i];
+        const a=p.t*Math.PI*2+swirlTime;
+        const pr=r*(0.15+0.6*energy)*(0.5+0.5*Math.sin(a*3+p.t));
+        p.x+= (cx+Math.cos(a)*pr-p.x)*0.04;
+        p.y+= (cy+Math.sin(a)*pr*0.7-p.y)*0.04;
+        p.vx*=.98;p.vy*=.98;p.vx+=(Math.random()-.5)*.2;p.vy+=(Math.random()-.5)*.2;
+        const hue=30+energy*20;const sat=60+energy*40;const light=45+energy*35;
+        const sz=p.size*(0.6+energy*1.5);
+        const pa=0.2+energy*0.35;
+        ctx.fillStyle=`hsla(${hue},${sat}%,${light}%,${pa})`;
+        ctx.shadowColor=`hsla(30,100%,50%,${pa*0.6})`;ctx.shadowBlur=sz*2;
+        ctx.beginPath();ctx.arc(p.x,p.y,sz,0,Math.PI*2);ctx.fill();
+      }
+      ctx.shadowBlur=0;
+      // Warm center glow
+      const gcr=15+energy*40;
+      const gc=ctx.createRadialGradient(cx,cy,gcr*0.2,cx,cy,gcr);
+      gc.addColorStop(0,'rgba(255,180,60,0.5)');gc.addColorStop(0.6,'rgba(255,140,20,0.15)');gc.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.fillStyle=gc;ctx.beginPath();ctx.arc(cx,cy,gcr,0,Math.PI*2);ctx.fill();
+      break;
+    }
+    case 'deepsea':{
+      // Deep blue/teal — slow drifting + bioluminescent dots
+      const driftTime=performance.now()*.0002;
+      for(let i=0;i<particles.length;i++){
+        const p=particles[i];
+        p.x+=Math.sin(driftTime+p.t*6)*0.3;p.y-=0.15+energy*0.3;
+        if(p.y<-10){p.y=H+10;p.x=Math.random()*W}
+        p.x+=(Math.random()-.5)*.6;
+        const hue=200+energy*30;const sat=50+energy*40;
+        const sz=p.size*(0.5+energy);
+        const pa=0.08+energy*0.25;
+        ctx.fillStyle=`hsla(${hue},${sat}%,${35+energy*30}%,${pa})`;
+        ctx.shadowColor=`rgba(0,180,220,${pa*0.5})`;ctx.shadowBlur=sz*4;
+        ctx.beginPath();ctx.arc(p.x,p.y,sz,0,Math.PI*2);ctx.fill();
+      }
+      ctx.shadowBlur=0;
+      // Caustics
+      for(let i=0;i<5;i++){
+        const cx2=cx+Math.sin(driftTime+i)*r*.6;
+        const cy2=cy+Math.cos(driftTime*1.3+i)*r*.4;
+        const cr2=20+energy*40;
+        const cg=ctx.createRadialGradient(cx2,cy2,0,cx2,cy2,cr2);
+        cg.addColorStop(0,'rgba(0,200,220,0.08)');cg.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle=cg;ctx.beginPath();ctx.arc(cx2,cy2,cr2,0,Math.PI*2);ctx.fill();
+      }
+      break;
+    }
+    case 'fractal':{
+      // Geometric recursion — rotating nested polygons
+      const ftime=performance.now()*.0008;
+      const layers=Math.floor(4+energy*4);
+      for(let l=0;l<layers;l++){
+        const sides=3+l;
+        const angle=ftime*(1+l*.3)+l*Math.PI/layers;
+        const lr=r*(0.3+0.5*l/layers+energy*0.25*Math.sin(ftime*2+l));
+        const hue=(l/layers*60+ftime*30)%360;
+        const a=0.1+energy*0.15*(1-l/layers*.7);
+        ctx.strokeStyle=`hsla(${hue},70%,60%,${a})`;
+        ctx.lineWidth=1.2;
+        ctx.beginPath();
+        for(let i=0;i<=sides;i++){
+          const sa=angle+i*Math.PI*2/sides;
+          const x=cx+Math.cos(sa)*lr,y=cy+Math.sin(sa)*lr;
+          if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+        }
+        ctx.stroke();
+      }
+      // Connection lines between polygon vertices
+      for(let i=0;i<12+Math.floor(energy*20);i++){
+        const a1=ftime+i*.8,a2=ftime*1.3+i*1.1;
+        const r1=r*(0.3+energy*0.5),r2=r*(0.5+energy*0.3+Math.sin(ftime)*.15);
+        ctx.strokeStyle=`rgba(255,255,255,${0.02+energy*0.06})`;
+        ctx.lineWidth=.5;
+        ctx.beginPath();ctx.moveTo(cx+Math.cos(a1)*r1,cy+Math.sin(a1)*r1);ctx.lineTo(cx+Math.cos(a2)*r2,cy+Math.sin(a2)*r2);ctx.stroke();
+      }
+      break;
+    }
+    case 'ink':{
+      // Ink wash — flowing brush-like strokes in monochrome
+      const itime=performance.now()*.0003;
+      for(let i=0;i<8+Math.floor(energy*6);i++){
+        const baseA=itime*1.3+i*1.5;
+        const lr=r*(0.3+i/10*0.6+Math.sin(baseA)*0.15*energy);
+        const a1=baseA,a2=baseA+Math.PI*(0.3+energy*0.4);
+        const x1=cx+Math.cos(a1)*lr,y1=cy+Math.sin(a1)*lr*.6;
+        const x2=cx+Math.cos(a2)*(lr+r*energy*.3),y2=cy+Math.sin(a2)*(lr+r*energy*.3)*.6;
+        const cpx=cx+Math.cos(baseA*1.4)*lr*1.3,cpy=cy+Math.sin(baseA*1.6)*lr*.8;
+        const alpha=0.03+energy*0.12;
+        ctx.strokeStyle=`rgba(220,215,230,${alpha})`;
+        ctx.lineWidth=1.5+energy*3;
+        ctx.lineCap='round';
+        ctx.beginPath();ctx.moveTo(x1,y1);ctx.quadraticCurveTo(cpx,cpy,x2,y2);ctx.stroke();
+      }
+      // Ink drops
+      for(let i=0;i<4;i++){
+        const dx=cx+Math.sin(itime*2+i*.9)*r*.7;
+        const dy=cy+Math.cos(itime*1.7+i*1.2)*r*.5;
+        const dr=3+energy*25+Math.sin(itime*4+i)*10*energy;
+        const dg=ctx.createRadialGradient(dx,dy,0,dx,dy,dr);
+        dg.addColorStop(0,'rgba(200,190,210,0.15)');dg.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.fillStyle=dg;ctx.beginPath();ctx.arc(dx,dy,dr,0,Math.PI*2);ctx.fill();
+      }
+      break;
+    }
+  }
+}
+
+// ── Main render loop ──
+function draw(){
+  analyzeFrame();if(isPlaying)detectBeat();
+  beatFlash*=0.85;beatTimer=Math.max(0,beatTimer-1);
+
+  const energy=energyHistory.length>0?energyHistory[energyHistory.length-1]:0;
+  const centroid=centroidHistory.length>0?centroidHistory[centroidHistory.length-1]:0.5;
+  const intensity=getSegmentIntensity();
+  const adjustedEnergy=energy*intensity;
+
+  // Handle preset transitions
+  if(currentPreset!==targetPreset){targetPreset=currentPreset;presetBlend=0}
+  if(targetPreset&&presetBlend<1){presetBlend=Math.min(1,presetBlend+transitionSpeed*(intensity+.3))}
+
+  // Clear the transparent visual layer
+  ctx.clearRect(0,0,W,H);
+
+  // Render current preset
+  const activePreset=presetBlend<0.95&&prevPreset!==targetPreset?prevPreset:targetPreset||currentPreset;
+  renderPreset(activePreset,adjustedEnergy,centroid,intensity);
+
+  // If transitioning, also render target at reduced opacity
+  if(presetBlend<0.95&&targetPreset&&targetPreset!==activePreset){
+    ctx.globalAlpha=presetBlend;
+    renderPreset(targetPreset,adjustedEnergy,centroid,intensity);
+    ctx.globalAlpha=1;
+    if(presetBlend>=0.95)prevPreset=targetPreset;
+  }else if(presetBlend>=0.95&&activePreset===targetPreset){
+    prevPreset=activePreset;
+  }
+
+  // Update structure bar
+  updateStructureBar();
+
+  requestAnimationFrame(draw);
+}
+
+// ── Structure bar UI ──
+function updateStructureBar(){
+  const bar=$('structureBar');
+  if(segmentProgress.length===0){bar.innerHTML='';return}
+  let html='';
+  for(let i=0;i<segmentProgress.length;i++){
+    const s=segmentProgress[i];
+    let cls='segment';
+    if(s.active)cls+=' active';else if(s.past)cls+=' past';
+    html+=`<div class="${cls}"></div>`;
+  }
+  if(bar.innerHTML!==html)bar.innerHTML=html;
+}
+
+// ── Preset indicators ──
+function buildPresetIndicators(){
+  const el=$('presetIndicators');
+  let html='';
+  for(const p of PRESETS){
+    html+=`<span class="preset-tag" data-preset="${p}">${PRESET_LABELS[p]}</span>`;
+  }
+  el.innerHTML=html;
+}
+buildPresetIndicators();
+
+// Update current preset highlight
+let lastHighlightedPreset='';
+function highlightPreset(){
+  if(currentPreset===lastHighlightedPreset)return;
+  lastHighlightedPreset=currentPreset;
+  document.querySelectorAll('.preset-tag').forEach(t=>{
+    t.className=t.dataset.preset===currentPreset?'preset-tag current':'preset-tag';
+  });
+}
+
+// Extend draw to handle preset UI
+const originalDraw=draw;
+draw=function(){
+  highlightPreset();
+  return originalDraw();
+};
+
+// ═══════════════════════════════════════════
+//  URL Proxy & Parsing (from v1)
+// ═══════════════════════════════════════════
+function proxy(url){return`/api/proxy?url=${encodeURIComponent(url)}`}
+function audioProxy(url){return`/api/audio?url=${encodeURIComponent(url)}`}
+
+function parseMusicUrl(url){
+  if(/music\.163\.com|163cn\.tv/.test(url)){
+    const m=url.match(/[?&]id=(\d+)/)||url.match(/song[\/\:](\d+)/)||url.match(/\/(\d+)\.mp3/)||url.match(/song\/(\d+)/);
+    return m?{platform:"netease",id:m[1],label:"网易云音乐"}:null;
+  }
+  if(/y\.qq\.com|c\.y\.qq\.com|i\.y\.qq\.com|\.qq\.com.*song/.test(url)){
+    const m=url.match(/songDetail\/(\w+)/)||url.match(/songmid=([A-Za-z0-9]+)/)||url.match(/songid=([A-Za-z0-9]+)/)||url.match(/t\d+\.kugou\.com.*id=(\d+)/);
+    return m?{platform:"qq",id:m[1],label:"QQ音乐"}:null;
+  }
+  if(/kugou\.com/.test(url)){
+    const m=url.match(/hash=([A-F0-9]+)/i)||url.match(/id=(\d+)/)||url.match(/hash=([a-f0-9]+)/i);
+    return m?{platform:"kugou",id:m[1],label:"酷狗音乐"}:null;
+  }
+  return null;
+}
+
+function parseNetEaseShareText(text){
+  const m=text.match(/分享\s*([^《「的]+?)\s*的\s*(?:单曲|歌曲|single|ep|专辑)?\s*[《「](.+?)[》」]/);
+  return m?{artist:m[1].trim(),songname:m[2].trim()}:null;
+}
+
+async function qqSearch(keyword){
+  const p=new URLSearchParams({w:keyword,p:'1',n:'3',format:'json'});
+  const r=await fetch(proxy('https://c.y.qq.com/soso/fcgi-bin/client_search_cp?'+p));
+  const d=await r.json();
+  return(d.data?.song?.list||[]).map(s=>({songmid:s.songmid,songname:s.songname,singer:(s.singer||[]).map(si=>si.name).join('/')}));
+}
+
+async function qqGetVkey(songmid){
+  const p=new URLSearchParams({data:JSON.stringify({req:{module:"CDN.SrfCdnDispatchServer",method:"GetCdnDispatch",param:{guid:"5",calltype:0,userip:""}},req_0:{module:"vkey.GetVkeyServer",method:"CgiGetVkey",param:{guid:"5",songmid:[songmid],songtype:[0],uin:"0",loginflag:0,platform:"20"}}})});
+  const r=await fetch(proxy('https://u.y.qq.com/cgi-bin/musicu.fcg?'+p));
+  const d=await r.json();const sip=d.req?.data?.sip||[],tf=d.req_0?.data?.testfile2g||(d.req_0?.data?.midurlinfo||[])[0]?.purl||'';
+  return sip.length&&tf?sip[0].replace(/\/$/,'')+'/'+tf:null;
+}
+
+async function neteaseGetUrl(songId){
+  try{
+    const r=await fetch(proxy('https://netease-cloud-music-api-alpha-dun.vercel.app/song/url?id='+songId+'&br=320000'));
+    const d=await r.json();
+    const u=d.data?.[0]?.url;
+    if(u&&u.startsWith('http'))return u;
+  }catch(e){console.error('netease song/url failed',e)}
+  return null;
+}
+
+async function resolveAndPlay(url, shareText=''){
+  const parsed=parseMusicUrl(url);if(!parsed)throw new Error('不支持的音乐平台链接');
+  songPanel.style.opacity='1';
+  let songname='',singer='',label=parsed.label;
+  const shareInfo=shareText?parseNetEaseShareText(shareText):null;
+
+  async function tryQQAndPlay(snm,sgr){
+    showToast('QQ 曲库搜索: '+snm+(sgr?' - '+sgr:''));
+    let qq=await qqSearch(snm+(sgr?' '+sgr:''));
+    if(!qq.length&&sgr){qq=await qqSearch(snm)}
+    if(!qq.length)throw new Error('QQ曲库中未找到「'+snm+'」');
+    showToast('获取播放链接...');
+    const pu=await qqGetVkey(qq[0].songmid);if(!pu)throw new Error('获取播放链接失败');
+    showToast('QQ 音乐播放: '+snm+' - '+(sgr||qq[0].singer));
+    await loadUrl(pu,snm,sgr||qq[0].singer,label);
+  }
+
+  if(parsed.platform==='qq'){
+    showToast('QQ 搜索中...');
+    const r=await qqSearch(parsed.id);if(!r.length)throw new Error('未找到该歌曲');
+    const pu=await qqGetVkey(r[0].songmid);if(!pu)throw new Error('获取播放链接失败');
+    showToast('开始播放: '+r[0].songname);
+    await loadUrl(pu,r[0].songname,r[0].singer,label);
+  }else if(parsed.platform==='netease'){
+    if(shareInfo){songname=shareInfo.songname;singer=shareInfo.artist;showToast('从分享文本识别: '+songname+' - '+singer)}
+    else{
+      showToast('查询歌曲信息...');
+      try{
+        const drResp=await fetch(proxy('https://netease-cloud-music-api-alpha-dun.vercel.app/song/detail?ids='+parsed.id));
+        const dd=await drResp.json();const s=dd.songs?.[0];
+        if(s&&s.name){songname=s.name;singer=(s.ar||[]).map(a=>a.name).join('/');showToast('已识别: '+songname+' - '+singer)}
+      }catch(e){console.error('Vercel API failed:',e)}
+      if(!songname){
+        try{
+          const titleResp=await fetch('/api/163-title?id='+parsed.id);
+          const titleData=await titleResp.json();
+          if(titleData.songname&&titleData.songname!=='网易云音乐'){songname=titleData.songname;singer=titleData.artist||'';showToast('网页识别: '+songname)}
+        }catch(e){console.error('163 title scrape failed',e)}
+      }
+      if(!songname){
+        showToast('备用方案: Vercel 搜索...');
+        try{
+          const sr=await fetch(proxy('https://netease-cloud-music-api-alpha-dun.vercel.app/search?keywords='+parsed.id+'&limit=3'));
+          const sd=await sr.json();const ss=sd.result?.songs?.[0];
+          if(ss&&ss.name){songname=ss.name;singer=(ss.ar||[]).map(a=>a.name).join('/');showToast('搜索识别: '+songname+' - '+singer)}
+        }catch(e){console.error('Vercel search failed:',e)}
+      }
+    }
+    if(!songname)throw new Error('无法识别歌曲信息。试试在客户端右键 → 「复制」（不要「复制链接」）');
+    showToast('尝试网易云直链...');
+    const neteaseUrl=await neteaseGetUrl(parsed.id);
+    if(neteaseUrl){
+      showToast('网易云播放: '+songname);
+      await loadUrl(neteaseUrl,songname,singer,label);
+    }else{
+      await tryQQAndPlay(songname,singer);
+    }
+  }else if(parsed.platform==='kugou'){
+    const kr=await fetch(proxy(`https://www.kugou.com/yy/index.php?r=play/getdata&hash=${parsed.id}&format=json`));
+    const kd=await kr.json();if(!kd.data)throw new Error('未找到酷狗歌曲');
+    songname=kd.data.song_name||kd.data.songname;singer=kd.data.author_name||kd.data.singername;
+    const qq=await qqSearch(songname+' '+singer);
+    if(!qq.length)throw new Error('在曲库中未找到可播放版本');
+    const pu=await qqGetVkey(qq[0].songmid);if(!pu)throw new Error('获取播放链接失败');
+    await loadUrl(pu,songname,singer,label);
+  }
+}
+
+async function handleMusicInput(text){
+  const urlMatch=text.match(/https?:\/\/[^\s<>"]+/);
+  if(urlMatch){
+    const url=urlMatch[0].replace(/["']/g,'');
+    if(parseMusicUrl(url)){
+      try{await resolveAndPlay(url, text);return!0}catch(e){showToast(e.message,!0);return!1}
+    }
+  }
+  const share=parseNetEaseShareText(text);
+  if(share){
+    try{
+      const qq=await qqSearch(share.songname+' '+share.artist);
+      if(!qq.length)throw new Error('在曲库中未找到可播放版本');
+      const pu=await qqGetVkey(qq[0].songmid);
+      if(!pu)throw new Error('获取播放链接失败');
+      await loadUrl(pu,share.songname,share.artist,'网易云音乐');
+      return!0;
+    }catch(e){showToast(e.message,!0);return!1}
+  }
+  return!1;
+}
+
+// ═══════════════════════════════════════════
+//  Events
+// ═══════════════════════════════════════════
+btnPlay.addEventListener('click',togglePlay);
+btnUpload.addEventListener('click',()=>fileInput.click());
+topUpload.addEventListener('click',()=>fileInput.click());
+btnLink.addEventListener('click',()=>{linkOverlay.classList.add('open');setTimeout(()=>linkInput.focus(),100)});
+linkClose.addEventListener('click',()=>linkOverlay.classList.remove('open'));
+linkOverlay.addEventListener('click',e=>{if(e.target===linkOverlay)linkOverlay.classList.remove('open')});
+linkInput.addEventListener('keydown',e=>{if(e.key==='Enter')submitLink()});
+linkBtn.addEventListener('click',submitLink);
+
+async function submitLink(){
+  const t=linkInput.value.trim();if(!t)return;
+  linkBtn.disabled=!0;linkBtn.textContent='解析中…';
+  try{const ok=await handleMusicInput(t);if(ok){linkOverlay.classList.remove('open');linkInput.value=''}else showToast('未识别到音乐链接',!0)}
+  catch(e){showToast(e.message,!0)}
+  finally{linkBtn.disabled=!1;linkBtn.textContent='解析'}
+}
+
+document.querySelectorAll('.platform-tag').forEach(t=>{
+  t.addEventListener('click',()=>{linkInput.value=t.dataset.example;linkInput.focus()});
+});
+
+fileInput.addEventListener('change',async e=>{
+  const f=e.target.files[0];
+  if(f)try{await loadFile(f);showToast('已加载: '+f.name)}catch(err){showToast('文件加载失败: '+err.message,!0)}
+});
+
+document.addEventListener('keydown',e=>{
+  if(e.code==='Escape')linkOverlay.classList.remove('open');
+  if(e.code==='Space'&&!linkOverlay.classList.contains('open')){e.preventDefault();togglePlay()}
+});
+
+// Drag & Drop
+let dc=0;
+document.addEventListener('dragenter',e=>{e.preventDefault();dc++;if(dc===1){document.body.style.outline='2px solid rgba(124,92,252,0.3)';document.body.style.outlineOffset='-4px'}});
+document.addEventListener('dragleave',()=>{dc--;if(dc<=0){dc=0;document.body.style.outline=''}});
+document.addEventListener('dragover',e=>e.preventDefault());
+document.addEventListener('drop',async e=>{
+  e.preventDefault();dc=0;document.body.style.outline='';
+  const f=e.dataTransfer.files;
+  if(f?.length>0&&f[0].type.startsWith('audio/')){
+    try{await loadFile(f[0]);showToast('已加载: '+f[0].name)}catch(err){showToast('加载失败: '+err.message,!0)}
+    return;
+  }
+  const t=e.dataTransfer.getData('text/plain')||e.dataTransfer.getData('text/uri-list');
+  if(t){const ok=await handleMusicInput(t);if(!ok)showToast('未识别到音乐链接',!0)}
+});
+
+// Paste
+document.addEventListener('paste',async e=>{
+  if(document.activeElement===linkInput)return;
+  const t=e.clipboardData?.getData('text/plain');if(!t)return;
+  if(t.match(/https?:\/\/[^\s<>"]+/)||t.includes('单曲')||t.includes('歌曲')){e.preventDefault();const ok=await handleMusicInput(t);if(!ok)showToast('未识别到音乐链接（右键 → 复制，不要复制链接）',!0)}
+});
+
+// ── Start ──
+draw();
+</script>
+</body>
+</html>
