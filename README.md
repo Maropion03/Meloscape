@@ -10,6 +10,10 @@
 </p>
 
 <p align="center">
+  <a href="https://audio-visualizer-navy.vercel.app" target="_blank" rel="noopener noreferrer"><strong>即刻体验</strong></a>
+</p>
+
+<p align="center">
   <img src="meloscape-promo.png" alt="Meloscape 宣传图" width="100%">
 </p>
 

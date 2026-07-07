@@ -10,6 +10,10 @@
 </p>
 
 <p align="center">
+  <a href="https://audio-visualizer-navy.vercel.app" target="_blank" rel="noopener noreferrer"><strong>Try it now</strong></a>
+</p>
+
+<p align="center">
   <img src="meloscape-promo.png" alt="Meloscape promo screenshot" width="100%">
 </p>
 
