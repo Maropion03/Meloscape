@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://audio-visualizer-navy.vercel.app" target="_blank" rel="noopener noreferrer"><strong>即刻体验</strong></a>
+  <a href="https://meloscape-inn2.vercel.app" target="_blank" rel="noopener noreferrer"><strong>即刻体验</strong></a>
 </p>
 
 <p align="center">
