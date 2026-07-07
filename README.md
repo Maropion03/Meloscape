@@ -1,71 +1,86 @@
-# Meloscape
+<h1 align="center">MELOSCAPE</h1>
 
-A real-time music visualization web app inspired by the clean, pixel-art aesthetic of [Mistral.ai](https://mistral.ai/). Paste a NetEase / QQ Music / Kugou link, and Meloscape generates a living landscape that reacts to rhythm, mood, and song structure.
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-orange" alt="License: MIT"></a>
+  <img src="https://img.shields.io/badge/frontend-HTML%2FCSS%2FJS-brown" alt="Frontend">
+  <img src="https://img.shields.io/badge/audio-Web%20Audio%20API-amber" alt="Web Audio API">
+  <img src="https://img.shields.io/badge/server-Node.js-green" alt="Node.js">
+</p>
 
-## Features
+<p align="center">
+  <img src="meloscape-promo.png" alt="Meloscape 宣传图" width="100%">
+</p>
 
-- **Multi-platform link parsing** — NetEase Cloud Music, QQ Music, Kugou
-- **Real-time audio analysis** — BPM detection, mood estimation, segment detection (intro / verse / chorus / bridge / outro)
-- **5 reactive visual scenes** that switch automatically with the music
-  - neon · sunset pulse
-  - golden · tidal glow
-  - deepsea · evening breeze
-  - fractal · pixel palms
-  - ink · oak shadows
-- **Local proxy server** — bypasses CORS and proxies audio streams
-- **Multiple inputs** — paste a link, drag-and-drop audio, or upload
+<p align="center">
+  <a href="README.en.md">English Version</a>
+</p>
 
-## Tech Stack
+Meloscape 是一个受像素艺术美学启发的实时音乐可视化 Web 应用。粘贴网易云音乐 / QQ 音乐 / 酷狗链接，或上传本地音频，它会根据节奏、情绪和歌曲结构自动生成并切换动态音景。
 
-- Frontend: vanilla HTML5 + CSS3 + Canvas + Web Audio API
-- Backend: Node.js local proxy server
-- Metadata: third-party NetEase API + QQ Music search fallback
+## 功能
 
-## Local Run
+- **多平台链接解析** — 网易云音乐、QQ 音乐、酷狗
+- **实时音频分析** — BPM 检测、情绪估计、段落识别（前奏 / 主歌 / 副歌 / 桥段 / 尾奏）
+- **5 个自动切换的反应式场景**
+  - neon · 日落脉冲
+  - golden · 潮汐微光
+  - deepsea · 晚风低语
+  - fractal · 像素棕榈
+  - ink · 橡树阴影
+- **本地代理服务器** — 绕过 CORS，代理音频流
+- **多种输入方式** — 粘贴链接、拖拽音频、本地上传
+
+## 技术栈
+
+- 前端：原生 HTML5 + CSS3 + Canvas + Web Audio API
+- 后端：Node.js 本地代理服务器
+- 元数据：第三方网易云 API + QQ 音乐搜索兜底
+
+## 本地运行
 
 ```bash
-# 1. Clone
+# 1. 克隆仓库
 git clone https://github.com/Maropion03/audio-visualizer.git
 cd audio-visualizer
 
-# 2. Start the local server (includes API proxy)
+# 2. 启动本地服务器（包含 API 代理）
 ./start.sh
 
-# 3. Open in browser
+# 3. 浏览器打开
 # http://localhost:8765
 ```
 
-Or run directly with Node:
+或直接运行 Node：
 
 ```bash
 node server.js
 ```
 
-## Usage
+## 使用说明
 
-1. Open the page and click **Paste link** or press `SPACE` for the demo track
-2. Paste a NetEase / QQ Music / Kugou link and click parse
-3. Wait 1-3 seconds; the landscape reacts to the music automatically
-4. You can also drag-and-drop a local audio file
+1. 打开页面，点击 **Paste link** 粘贴音乐链接，或拖拽本地音频文件
+2. 等待 1-3 秒，音景会自动随音乐变化
+3. 按 `SPACE` 播放 / 暂停
 
-## Project Structure
+## 项目结构
 
 ```
 audio-visualizer/
-├── assets/
-│   └── pixel-beach-oak-palms.png   # default pixel-art backdrop
-├── index.html                       # single-page app
-├── server.js                        # Node.js proxy server
-├── start.sh                         # one-click launcher
-└── README.md
+├── index.html           # 单页应用
+├── server.js            # Node.js 代理服务器
+├── start.sh             # 一键启动脚本
+├── meloscape-promo.png  # 宣传图
+└── README.md            # 本文件
 ```
 
-## Notes
+> 注意：`assets/` 文件夹用于存放背景图和 favicon，已加入 `.gitignore`，不会提交到仓库。首次运行前请自行准备或从 Release 下载。
 
-- For learning and experimentation only
-- Some tracks are blocked by copyright / VIP restrictions
-- Platform APIs change frequently; if parsing fails, try a freely available track
+## 说明
 
-## License
+- 仅供学习和实验使用
+- 部分曲目受版权 / VIP 限制可能无法解析
+- 平台接口可能变动，若解析失败请尝试其他可用曲目
+
+## 许可
 
 MIT

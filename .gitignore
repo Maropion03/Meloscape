@@ -1,0 +1,5 @@
+# User-provided assets (backgrounds, favicon, etc.)
+assets/
+
+# OS files
+.DS_Store
