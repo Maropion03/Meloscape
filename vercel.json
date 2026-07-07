@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "framework": null,
   "github": {
     "enabled": false
   }

@@ -204,8 +204,6 @@ const server = http.createServer((req, res) => {
   let filePath = path.join(STATIC_DIR, url.pathname === '/' ? 'index.html' : url.pathname);
   filePath = path.normalize(filePath);
 
-  console.log('DEBUG', { staticDir: STATIC_DIR, pathname: url.pathname, filePath, exists: fs.existsSync(filePath), cwd: process.cwd() });
-
   // Security: prevent path traversal
   if (!filePath.startsWith(STATIC_DIR)) {
     res.writeHead(403);
