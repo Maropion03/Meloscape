@@ -1,5 +1,7 @@
 <h1 align="center">MELOSCAPE</h1>
 
+<h3 align="center">Real-time Music Visualizer · See the Shape of Sound</h3>
+
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-orange" alt="License: MIT"></a>
   <img src="https://img.shields.io/badge/frontend-HTML%2FCSS%2FJS-brown" alt="Frontend">
