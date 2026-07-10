@@ -351,7 +351,7 @@ function showToast(msg,err=!1){
 // ═══════════════════════════════════════════
 //  Audio Engine
 // ═══════════════════════════════════════════
-let audioCtx,analyser,source=null,audioBuffer=null,mediaEl=null;
+let audioCtx,analyser,source=null,mediaSource=null,audioBuffer=null,mediaEl=null;
 let isPlaying=!1,pauseOffset=0,startTime=0,duration=0;
 let freqData,timeData;
 const FFT=2048;
@@ -361,8 +361,16 @@ async function initAudio(){
   if(audioCtx.state==='suspended')await audioCtx.resume();
 }
 
+function cleanupCurrentAudio(){
+  if(source){try{source.stop()}catch(e){}try{source.disconnect()}catch(e){}source=null}
+  if(mediaEl){try{mediaEl.pause()}catch(e){}mediaEl.src='';mediaEl.load();mediaEl=null}
+  if(mediaSource){try{mediaSource.disconnect()}catch(e){}mediaSource=null}
+  isPlaying=false;updatePlayIcon();
+}
+
 async function loadFile(file){
   await initAudio();
+  cleanupCurrentAudio();
   const buf=await file.arrayBuffer();
   audioBuffer=await audioCtx.decodeAudioData(buf);
   duration=audioBuffer.duration;mediaEl=null;
@@ -370,7 +378,7 @@ async function loadFile(file){
   const pts=name.split(/[-–—]+/);
   songTitle.textContent=pts.length>=2?(pts[1].trim()||pts[0].trim()):name;
   songArtist.textContent=pts.length>=2?pts[0].trim():'local file';
-  lyrics=[];lyricsSource='';lyricEmotion='neutral';currentLyricEmotion='neutral';
+  lyrics=[];lyricsSource='';lyricEmotion='neutral';lyricEmotionStats={emotion:'neutral',scores:{positive:0,negative:0,energetic:0,calm:0},total:0,confidence:0};currentLyricEmotion='neutral';
   renderLyrics();updateDashboard();
   pauseOffset=0;
   playFromBuffer();resetAnalysis();
@@ -381,20 +389,44 @@ async function loadFile(file){
 
 async function loadUrl(url,title,artist,srcLabel){
   await initAudio();
-  // Fetch through local proxy, decode offline for BPM, then play as buffer source
-  const audioSrc=url.startsWith('http://')||url.startsWith('https://')?audioProxy(url):url;
-  const resp=await fetch(audioSrc,{headers:{'Referer':'https://y.qq.com'}});
-  if(!resp.ok)throw new Error('audio fetch failed: '+resp.status);
-  const buf=await resp.arrayBuffer();
-  audioBuffer=await audioCtx.decodeAudioData(buf);
-  duration=audioBuffer.duration;mediaEl=null;
+  const isNeteaseOuter=url.includes('music.163.com/song/media/outer/url');
+  const audioSrc=url.startsWith('http://')||url.startsWith('https://')?(isNeteaseOuter?url:audioProxy(url)):url;
+  // Clean up buffer source only; keep mediaEl + mediaSource alive (createMediaElementSource is one-time per AudioContext)
+  if(source){try{source.stop()}catch(e){}try{source.disconnect()}catch(e){}source=null}
+  audioBuffer=null;
+  if(!mediaEl){
+    mediaEl=new Audio();
+    if(!isNeteaseOuter)mediaEl.crossOrigin='anonymous';
+    mediaEl.preload='auto';
+    mediaEl.addEventListener('loadedmetadata',()=>{
+      if(Number.isFinite(mediaEl.duration))duration=mediaEl.duration;
+      updateDashboard();
+    });
+    mediaEl.addEventListener('durationchange',()=>{
+      if(Number.isFinite(mediaEl.duration))duration=mediaEl.duration;
+    });
+    mediaEl.addEventListener('ended',()=>{pauseOffset=0;isPlaying=!1;updatePlayIcon()});
+    mediaEl.addEventListener('error',()=>{
+      const code=mediaEl.error?.code;
+      showToast(`audio stream failed${code?`: ${code}`:''}`,!0);
+    });
+    if(!isNeteaseOuter){
+      mediaSource=audioCtx.createMediaElementSource(mediaEl);
+      mediaSource.connect(analyser);
+    }
+  }
+  mediaEl.src=audioSrc;
+  duration=0;
   songTitle.textContent=title;songArtist.textContent=artist;
-  lyricEmotion='neutral';currentLyricEmotion='neutral';
   pauseOffset=0;
-  playFromBuffer();resetAnalysis();
-  computeBpm(audioBuffer).then(detectedBpm=>{
-    if(detectedBpm>0){bpm=detectedBpm;bpmConfidence=0.85;updateDashboard();}
-  });
+  resetAnalysis();
+  try{
+    await mediaEl.play();
+    isPlaying=!0;updatePlayIcon();
+  }catch(err){
+    isPlaying=false;updatePlayIcon();
+    throw new UserFacingError('playback failed, please try another link',err.message,'media_play_failed');
+  }
 }
 
 function playFromBuffer(){
@@ -463,13 +495,25 @@ async function computeBpm(buffer){
   }catch(e){console.error('computeBpm error',e);return 0}
 }
 
-function togglePlay(){
+async function togglePlay(){
   if(!audioBuffer&&!mediaEl){fileInput.click();return}
   if(isPlaying){
     if(mediaEl)mediaEl.pause();
     else{pauseOffset=audioCtx.currentTime-startTime;try{source.stop()}catch(e){}source.disconnect();source=null}
     isPlaying=!1;
-  }else{if(mediaEl)mediaEl.play();else playFromBuffer();isPlaying=!0}
+  }else{
+    if(mediaEl){
+      try{
+        await mediaEl.play();
+        isPlaying=!0;
+      }catch(err){
+        isPlaying=false;
+        showUserError(new UserFacingError('playback failed, please try another link',err.message,'media_play_failed'));
+      }
+    }else{
+      playFromBuffer();isPlaying=!0
+    }
+  }
   updatePlayIcon();
 }
 function updatePlayIcon(){iconPlay.style.display=isPlaying?'none':'';iconPause.style.display=isPlaying?'':'none'}
@@ -494,6 +538,7 @@ let songProgress=0;
 let lyrics=[]; // parsed LRC lines
 let lyricsSource=''; // 'netease' | 'qq' | ''
 let lyricEmotion='neutral'; // overall lyric sentiment
+let lyricEmotionStats={emotion:'neutral',scores:{positive:0,negative:0,energetic:0,calm:0},total:0,confidence:0};
 let currentLyricEmotion='neutral'; // windowed emotion around current line
 
 // Mood categories
@@ -691,6 +736,10 @@ function analyzeFrame(){
   // trigger it; only real chorus/drop sections with attack should reach it.
   if(currentMood==='energetic' && fastOverSlow<1.05 && bpmAdjusted<100){
     currentMood='upbeat';
+  }
+  if(mediaEl&&!mediaSource&&lyrics.length){
+    const lyricMood={positive:'upbeat',negative:'melancholic',energetic:'energetic',calm:'calm'}[currentLyricEmotion||lyricEmotion];
+    if(lyricMood)currentMood=lyricMood;
   }
 
   // ── Preset selection ──
@@ -1068,36 +1117,52 @@ function updateStructureBar(){
 
 // ── Lyrics UI ──
 const EMOTION_WORDS={
-  positive:['爱','喜欢','快乐','幸福','美好','希望','阳光','温暖','笑','开心','甜','吻','拥抱','爱','love','happy','hope','bright','warm','smile','joy','sweet','kiss','hug'],
-  negative:['泪','伤','痛','哭','孤独','冷','黑暗','死','分','恨','悲','愁','苦','碎','忘','离','城','留','等','夜','空','远','旧','回忆','错过','曾经','如果','一个人','终究','遗憾','sad','cry','pain','dark','cold','lonely','tear','death','break','forget','leave','city','wait','night','empty','far','memory','miss','regret'],
-  energetic:['跑','跳','飞','冲','燃烧','爆炸','战斗','火','烈','狂','追','炸','顶','狠','rap','flow','mic','battle','bang','hit','drop','beat','bass'],
-  calm:['静','安静','睡','梦','轻','柔','风','云','慢','轻轻','慢慢','淡淡','温柔','宁静','quiet','sleep','dream','soft','peace','calm','wind','cloud','slow','gentle']
+  positive:[
+    ['爱',1.2],['喜欢',2],['快乐',2],['幸福',2],['美好',1.8],['希望',1.3],['阳光',1.5],['温暖',1.6],['开心',2],['甜',1.2],['吻',1.8],['亲吻',2.2],['拥抱',2],['期待',1.8],['春暖',1.7],['花开',1.7],['满意',1.5],['靠得太近',1.4],['嘴角',1.2],['心跳',1.4],['感觉',0.8],['love',2],['happy',2],['hope',1.5],['bright',1.4],['warm',1.6],['smile',1.6],['joy',2],['sweet',1.8],['kiss',2],['hug',2],['tonight',0.8]
+  ],
+  negative:[
+    ['眼泪',2],['泪',1.5],['伤心',2],['受伤',1.8],['痛',1.6],['哭',2],['孤独',2],['冷',1.1],['黑暗',1.8],['死亡',2],['死',1.2],['分开',1.8],['分手',2],['恨',1.8],['悲伤',2],['悲',1.4],['愁',1.5],['苦',1.2],['破碎',1.8],['碎',1.1],['忘掉',1],['忘记',1],['离开',1.7],['错过',2],['曾经',1.1],['一个人',1.7],['终究',1.3],['遗憾',2],['落空',1.6],['不好听',1.1],['挣扎',1.5],['sad',2],['cry',2],['pain',1.8],['dark',1.6],['cold',1.2],['lonely',2],['tear',1.6],['death',2],['break',1.5],['forget',1.2],['leave',1.4],['empty',1.6],['memory',1],['miss',1.5],['regret',2]
+  ],
+  energetic:[
+    ['跑',1.2],['跳',1.3],['飞',1.2],['冲',1.5],['燃烧',2],['爆炸',2],['战斗',1.7],['火',1],['烈',1],['狂',1.4],['追',1],['炸',1.4],['顶',0.8],['狠',1],['激动',1.8],['律动',1.8],['music on',1.8],['心跳',1.2],['rap',1.6],['flow',1.4],['mic',1.2],['battle',1.7],['bang',1.5],['hit',1.2],['drop',1.6],['beat',1.5],['bass',1.6]
+  ],
+  calm:[
+    ['安静',2],['静',1],['睡',1.4],['梦',1.3],['轻轻',1.8],['轻',0.8],['柔',1.1],['风',0.9],['云',0.8],['慢慢',1.8],['慢',0.8],['淡淡',1.5],['温柔',2],['宁静',2],['从容',1.5],['礼貌',1.1],['客客气气',1.8],['不必说话',1.5],['quiet',2],['sleep',1.5],['dream',1.4],['soft',1.6],['peace',1.8],['calm',1.8],['wind',1],['cloud',1],['slow',1.2],['gentle',1.8]
+  ]
 };
 const EMOTION_LABELS={positive:'warm',negative:'melancholy',energetic:'intense',calm:'serene',neutral:'neutral'};
 const EMOTION_COLORS={positive:'#e8a87c',negative:'#7c98b3',energetic:'#ff6b35',calm:'#a8c686',neutral:'#8c7b6c'};
 
 function analyzeLyricsEmotion(text){
-  const empty={emotion:'neutral',scores:{positive:0,negative:0,energetic:0,calm:0},total:0};
+  const empty={emotion:'neutral',scores:{positive:0,negative:0,energetic:0,calm:0},total:0,confidence:0};
   if(!text)return empty;
   const t=text.toLowerCase();
   const scores={positive:0,negative:0,energetic:0,calm:0};
   for(const [emo,words] of Object.entries(EMOTION_WORDS)){
-    words.forEach(w=>{
+    words.forEach(entry=>{
+      const w=Array.isArray(entry)?entry[0]:entry;
+      const weight=Array.isArray(entry)?entry[1]:1;
       let idx=0;
-      while((idx=t.indexOf(w,idx))!==-1){scores[emo]++;idx+=w.length}
+      while((idx=t.indexOf(w,idx))!==-1){scores[emo]+=weight;idx+=w.length}
     });
   }
   const total=scores.positive+scores.negative+scores.energetic+scores.calm;
   if(total===0)return empty;
-  const emotion=Object.entries(scores).sort((a,b)=>b[1]-a[1])[0][0];
-  return {emotion,scores,total};
+  const ranked=Object.entries(scores).sort((a,b)=>b[1]-a[1]);
+  const [emotion,top]=ranked[0],second=ranked[1]?.[1]||0;
+  const confidence=top/total;
+  if(top<1.2||confidence<0.34||top-second<0.35)return {...empty,scores,total,confidence};
+  return {emotion,scores,total,confidence};
 }
 function computeLyricEmotionWindow(centerIdx,range=3){
-  if(!lyrics.length)return {emotion:'neutral',scores:{positive:0,negative:0,energetic:0,calm:0},total:0};
+  if(!lyrics.length)return {emotion:'neutral',scores:{positive:0,negative:0,energetic:0,calm:0},total:0,confidence:0};
   const start=Math.max(0,centerIdx-range);
   const end=Math.min(lyrics.length,centerIdx+range+1);
   const text=lyrics.slice(start,end).map(l=>l.text).join(' ');
-  return analyzeLyricsEmotion(text);
+  const local=analyzeLyricsEmotion(text);
+  if(local.emotion!=='neutral')return local;
+  if(range<6)return computeLyricEmotionWindow(centerIdx,6);
+  return lyricEmotionStats.emotion==='neutral'?local:{...lyricEmotionStats,inherited:true};
 }
 
 function parseLrc(lrcText){
@@ -1110,46 +1175,47 @@ function parseLrc(lrcText){
       const min=parseInt(m[1],10),sec=parseInt(m[2],10),ms=parseInt((m[3]||'0').padEnd(3,'0').slice(0,3),10);
       const time=min*60+sec+ms/1000;
       const text=m[4].trim();
-      lines.push({time,text});
+      if(text&&!/^(作词|作曲|编曲|制作人|词|曲|composer|lyricist)\s*[:：]/i.test(text))lines.push({time,text});
     }
   });
   return lines.sort((a,b)=>a.time-b.time);
 }
 async function loadLyrics(songId,keyword=''){
-  lyrics=[];lyricsSource='';
+  lyrics=[];lyricsSource='';lyricEmotion='neutral';lyricEmotionStats={emotion:'neutral',scores:{positive:0,negative:0,energetic:0,calm:0},total:0,confidence:0};currentLyricEmotion='neutral';
   renderLyrics();
   try{
     if(songId){
-      const r=await fetch(proxy('https://netease-cloud-music-api-alpha-dun.vercel.app/lyric?id='+songId));
-      const d=await r.json();
+      const d=await fetchJson(proxy('https://netease-cloud-music-api-alpha-dun.vercel.app/lyric?id='+songId),{message:'lyrics are temporarily unavailable'});
       const lrcText=d.lrc?.lyric||d.lyric;
       if(lrcText){
         lyrics=parseLrc(lrcText);
         lyricsSource='netease';
         const allText=lyrics.map(l=>l.text).join(' ');
-        lyricEmotion=analyzeLyricsEmotion(allText).emotion;
+        lyricEmotionStats=analyzeLyricsEmotion(allText);
+        lyricEmotion=lyricEmotionStats.emotion;
+        currentLyricEmotion=lyricEmotion;
         renderLyrics();
         return;
       }
     }
     if(keyword){
-      const sr=await fetch(proxy('https://netease-cloud-music-api-alpha-dun.vercel.app/search?keywords='+encodeURIComponent(keyword)+'&limit=1'));
-      const sd=await sr.json();
+      const sd=await fetchJson(proxy('https://netease-cloud-music-api-alpha-dun.vercel.app/search?keywords='+encodeURIComponent(keyword)+'&limit=1'),{message:'lyrics are temporarily unavailable'});
       const ss=sd.result?.songs?.[0];
       if(ss?.id){
-        const lr=await fetch(proxy('https://netease-cloud-music-api-alpha-dun.vercel.app/lyric?id='+ss.id));
-        const ld=await lr.json();
+        const ld=await fetchJson(proxy('https://netease-cloud-music-api-alpha-dun.vercel.app/lyric?id='+ss.id),{message:'lyrics are temporarily unavailable'});
         const lrcText=ld.lrc?.lyric||ld.lyric;
         if(lrcText){
           lyrics=parseLrc(lrcText);
           lyricsSource='netease-search';
           const allText=lyrics.map(l=>l.text).join(' ');
-          lyricEmotion=analyzeLyricsEmotion(allText).emotion;
+          lyricEmotionStats=analyzeLyricsEmotion(allText);
+          lyricEmotion=lyricEmotionStats.emotion;
+          currentLyricEmotion=lyricEmotion;
           renderLyrics()
         }
       }
     }
-  }catch(e){console.error('lyrics load failed',e)}
+  }catch(e){console.error('lyrics load failed',e);lyricsList.innerHTML='<div class="lyrics-line">Lyrics unavailable</div>'}
 }
 function renderLyrics(){
   if(!lyricsList)return;
@@ -1235,6 +1301,40 @@ draw=function(){
 function proxy(url){return`/api/proxy?url=${encodeURIComponent(url)}`}
 function audioProxy(url){return`/api/audio?url=${encodeURIComponent(url)}`}
 
+class UserFacingError extends Error{
+  constructor(message,detail='',code='user_error'){super(message);this.detail=detail;this.code=code}
+}
+
+async function fetchText(url,{timeoutMs=8000,message='network request failed',emptyMessage='service returned an empty response'}={}){
+  const ctrl=new AbortController();
+  const timer=setTimeout(()=>ctrl.abort(),timeoutMs);
+  try{
+    const resp=await fetch(url,{signal:ctrl.signal});
+    const text=await resp.text();
+    if(!resp.ok)throw new UserFacingError(message,`HTTP ${resp.status}: ${text.slice(0,180)}`,'http_error');
+    if(!text.trim())throw new UserFacingError(emptyMessage,'empty response body','empty_body');
+    return text;
+  }catch(err){
+    if(err.name==='AbortError')throw new UserFacingError('request timed out, please try again','timeout','timeout');
+    if(err instanceof UserFacingError)throw err;
+    throw new UserFacingError(message,err.message,'network_error');
+  }finally{
+    clearTimeout(timer);
+  }
+}
+
+async function fetchJson(url,opts={}){
+  const text=await fetchText(url,opts);
+  try{return JSON.parse(text)}
+  catch(err){throw new UserFacingError(opts.parseMessage||'music service returned an unexpected response',`JSON parse failed: ${err.message}; body=${text.slice(0,180)}`,'json_parse_error')}
+}
+
+function showUserError(err,fallback='playback failed, please try another link'){
+  if(err instanceof UserFacingError)console.warn(err);
+  else console.error(err);
+  showToast(err instanceof UserFacingError?err.message:fallback,!0);
+}
+
 function parseMusicUrl(url){
   if(/music\.163\.com|163cn\.tv/.test(url)){
     const m=url.match(/[?&]id=(\d+)/)||url.match(/song[\/\:](\d+)/)||url.match(/\/(\d+)\.mp3/)||url.match(/song\/(\d+)/);
@@ -1258,26 +1358,32 @@ function parseNetEaseShareText(text){
 
 async function qqSearch(keyword){
   const p=new URLSearchParams({w:keyword,p:'1',n:'3',format:'json'});
-  const r=await fetch(proxy('https://c.y.qq.com/soso/fcgi-bin/client_search_cp?'+p));
-  const d=await r.json();
+  const d=await fetchJson(proxy('https://c.y.qq.com/soso/fcgi-bin/client_search_cp?'+p),{
+    message:'QQ Music search failed, please try another link',
+    emptyMessage:'QQ Music returned an empty response'
+  });
   return(d.data?.song?.list||[]).map(s=>({songmid:s.songmid,songname:s.songname,singer:(s.singer||[]).map(si=>si.name).join('/')}));
 }
 
 async function qqGetVkey(songmid){
   const p=new URLSearchParams({data:JSON.stringify({req:{module:"CDN.SrfCdnDispatchServer",method:"GetCdnDispatch",param:{guid:"5",calltype:0,userip:""}},req_0:{module:"vkey.GetVkeyServer",method:"CgiGetVkey",param:{guid:"5",songmid:[songmid],songtype:[0],uin:"0",loginflag:0,platform:"20"}}})});
-  const r=await fetch(proxy('https://u.y.qq.com/cgi-bin/musicu.fcg?'+p));
-  const d=await r.json();const sip=d.req?.data?.sip||[],tf=(d.req_0?.data?.midurlinfo||[])[0]?.purl||d.req_0?.data?.testfile2g||'';
+  const d=await fetchJson(proxy('https://u.y.qq.com/cgi-bin/musicu.fcg?'+p),{
+    message:'failed to fetch QQ playback link',
+    emptyMessage:'QQ Music returned an empty playback response'
+  });
+  const sip=d.req?.data?.sip||[],tf=(d.req_0?.data?.midurlinfo||[])[0]?.purl||d.req_0?.data?.testfile2g||'';
   return sip.length&&tf?sip[0].replace(/\/$/,'')+'/'+tf:null;
 }
 
 async function neteaseGetUrl(songId){
   try{
-    const r=await fetch(proxy('https://netease-cloud-music-api-alpha-dun.vercel.app/song/url?id='+songId+'&br=320000'));
-    const d=await r.json();
+    const d=await fetchJson(proxy('https://netease-cloud-music-api-alpha-dun.vercel.app/song/url?id='+songId+'&br=320000'),{
+      message:'NetEase playback link is unavailable'
+    });
     const u=d.data?.[0]?.url;
     if(u&&u.startsWith('http'))return u;
   }catch(e){console.error('netease song/url failed',e)}
-  return null;
+  return `https://music.163.com/song/media/outer/url?id=${songId}.mp3`;
 }
 
 async function resolveAndPlay(url, shareText=''){
@@ -1308,11 +1414,10 @@ async function resolveAndPlay(url, shareText=''){
     if(shareInfo){songname=shareInfo.songname;singer=shareInfo.artist;showToast('identified from share text: '+songname+' - '+singer)}
     else{
       showToast('looking up song info...');
-      const fetchJson=(url,ms=6000)=>Promise.race([fetch(url).then(r=>r.json()),new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),ms))]);
       const [detailData,titleData,searchData]=await Promise.allSettled([
-        fetchJson(proxy('https://netease-cloud-music-api-alpha-dun.vercel.app/song/detail?ids='+parsed.id)),
-        fetchJson('/api/163-title?id='+parsed.id),
-        fetchJson(proxy('https://netease-cloud-music-api-alpha-dun.vercel.app/search?keywords='+parsed.id+'&limit=3'))
+        fetchJson(proxy('https://netease-cloud-music-api-alpha-dun.vercel.app/song/detail?ids='+parsed.id),{timeoutMs:6000,message:'cannot identify song details'}),
+        fetchJson('/api/163-title?id='+parsed.id,{timeoutMs:6000,message:'cannot identify song title'}),
+        fetchJson(proxy('https://netease-cloud-music-api-alpha-dun.vercel.app/search?keywords='+parsed.id+'&limit=3'),{timeoutMs:6000,message:'cannot search song metadata'})
       ]);
       const d=detailData.status==='fulfilled'?detailData.value:null;
       const t=titleData.status==='fulfilled'?titleData.value:null;
@@ -1345,8 +1450,8 @@ async function resolveAndPlay(url, shareText=''){
       await tryQQAndPlay(songname,singer);
     }
   }else if(parsed.platform==='kugou'){
-    const kr=await fetch(proxy(`https://www.kugou.com/yy/index.php?r=play/getdata&hash=${parsed.id}&format=json`));
-    const kd=await kr.json();if(!kd.data)throw new Error('Kugou song not found');
+    const kd=await fetchJson(proxy(`https://www.kugou.com/yy/index.php?r=play/getdata&hash=${parsed.id}&format=json`),{message:'Kugou song lookup failed'});
+    if(!kd.data)throw new UserFacingError('Kugou song not found');
     songname=kd.data.song_name||kd.data.songname;singer=kd.data.author_name||kd.data.singername;
     loadLyrics(null,songname+' '+singer);
     const qq=await qqSearch(songname+' '+singer);
@@ -1363,6 +1468,9 @@ async function handleMusicInput(text){
     if(parseMusicUrl(url)){
       await resolveAndPlay(url,text);
       return!0;
+    }
+    if(/163cn\.tv/.test(url)){
+      throw new UserFacingError('please paste a full NetEase song link or the complete share text');
     }
   }
   const share=parseNetEaseShareText(text);
@@ -1397,8 +1505,7 @@ async function submitLink(){
     if(ok){closeLinkOverlay()}
     else showToast('unrecognized music link',!0)
   }catch(e){
-    console.error('submitLink error:',e);
-    showToast(e.message||'playback failed',!0)
+    showUserError(e)
   }finally{linkBtn.disabled=!1;linkBtn.textContent='Parse'}
 }
 
@@ -1408,7 +1515,7 @@ document.querySelectorAll('.platform-tag').forEach(t=>{
 
 fileInput.addEventListener('change',async e=>{
   const f=e.target.files[0];
-  if(f)try{await loadFile(f);showToast('loaded: '+f.name)}catch(err){showToast('file load failed: '+err.message,!0)}
+  if(f)try{await loadFile(f);showToast('loaded: '+f.name)}catch(err){showUserError(err,'file load failed')}
 });
 
 document.addEventListener('keydown',e=>{
@@ -1425,7 +1532,7 @@ document.addEventListener('drop',async e=>{
   e.preventDefault();dc=0;document.body.style.outline='';
   const f=e.dataTransfer.files;
   if(f?.length>0&&f[0].type.startsWith('audio/')){
-    try{await loadFile(f[0]);showToast('loaded: '+f[0].name)}catch(err){showToast('load failed: '+err.message,!0)}
+    try{await loadFile(f[0]);showToast('loaded: '+f[0].name)}catch(err){showUserError(err,'file load failed')}
     return;
   }
   const t=e.dataTransfer.getData('text/plain')||e.dataTransfer.getData('text/uri-list');
@@ -1434,8 +1541,7 @@ document.addEventListener('drop',async e=>{
       const ok=await handleMusicInput(t);
       if(!ok)showToast('unrecognized music link',!0)
     }catch(err){
-      console.error('drop handler error:',err);
-      showToast(err.message||'playback failed',!0)
+      showUserError(err)
     }
   }
 });
@@ -1450,8 +1556,7 @@ document.addEventListener('paste',async e=>{
       const ok=await handleMusicInput(t);
       if(!ok)showToast('unrecognized music link (right-click → Copy, not Copy Link)',!0)
     }catch(err){
-      console.error('paste handler error:',err);
-      showToast(err.message||'playback failed',!0)
+      showUserError(err)
     }
   }
 });
