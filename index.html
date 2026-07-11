@@ -362,21 +362,32 @@ async function initAudio(){
     analyser=audioCtx.createAnalyser();
     analyser.fftSize=FFT;
     analyser.smoothingTimeConstant=0.65;
-    // analyser → destination stays connected permanently
     analyser.connect(audioCtx.destination);
     freqData=new Float32Array(analyser.frequencyBinCount);
     timeData=new Float32Array(FFT/2);
-    // Create persistent Audio element
+    // Create persistent Audio element (mediaSource created on first loadUrl)
     mediaEl=new Audio();
     mediaEl.preload='auto';
+    // Attach listeners once
+    mediaEl.addEventListener('loadedmetadata',()=>{
+      if(Number.isFinite(mediaEl.duration))duration=mediaEl.duration;
+      updateDashboard();
+    });
+    mediaEl.addEventListener('durationchange',()=>{
+      if(Number.isFinite(mediaEl.duration))duration=mediaEl.duration;
+    });
+    mediaEl.addEventListener('ended',()=>{pauseOffset=0;isPlaying=!1;updatePlayIcon()});
+    mediaEl.addEventListener('error',()=>{
+      const code=mediaEl.error?.code;
+      showToast(`audio stream failed${code?`: ${code}`:''}`,!0);
+    });
   }
   if(audioCtx.state==='suspended')await audioCtx.resume();
 }
 
 function cleanupCurrentAudio(){
   if(source){try{source.stop()}catch(e){}try{source.disconnect()}catch(e){}source=null}
-  if(mediaEl){try{mediaEl.pause()}catch(e){}mediaEl.src='';mediaEl.load()}
-  // Don't null out mediaEl/mediaSource - createMediaElementSource is one-time per AudioContext
+  if(mediaEl){try{mediaEl.pause()}catch(e){}}
   isPlaying=false;updatePlayIcon();
 }
 
@@ -405,27 +416,16 @@ async function loadUrl(url,title,artist,srcLabel){
   const audioSrc=url.startsWith('http://')||url.startsWith('https://')?(isNeteaseOuter?url:audioProxy(url)):url;
   cleanupCurrentAudio();
   audioBuffer=null;
-  // Reuse existing mediaEl+mediaSource or create them (one-time per AudioContext)
-  if(!mediaEl){
-    mediaEl=new Audio();
-    if(!isNeteaseOuter)mediaEl.crossOrigin='anonymous';
-    mediaEl.preload='auto';
-    mediaEl.addEventListener('loadedmetadata',()=>{
-      if(Number.isFinite(mediaEl.duration))duration=mediaEl.duration;
-      updateDashboard();
-    });
-    mediaEl.addEventListener('durationchange',()=>{
-      if(Number.isFinite(mediaEl.duration))duration=mediaEl.duration;
-    });
-    mediaEl.addEventListener('ended',()=>{pauseOffset=0;isPlaying=!1;updatePlayIcon()});
-    mediaEl.addEventListener('error',()=>{
-      const code=mediaEl.error?.code;
-      showToast(`audio stream failed${code?`: ${code}`:''}`,!0);
-    });
+  // Set crossOrigin BEFORE src
+  if(!isNeteaseOuter&&!mediaEl.crossOrigin)mediaEl.crossOrigin='anonymous';
+  // Set src BEFORE createMediaElementSource (required for proper audio routing)
+  mediaEl.src=audioSrc;
+  // Create mediaSource on first URL load (one-time per AudioContext)
+  if(!mediaSource){
     mediaSource=audioCtx.createMediaElementSource(mediaEl);
     mediaSource.connect(analyser);
+    // analyser → destination already connected in initAudio
   }
-  mediaEl.src=audioSrc;
   duration=0;
   songTitle.textContent=title;songArtist.textContent=artist;
   pauseOffset=0;
