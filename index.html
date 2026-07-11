@@ -362,27 +362,13 @@ async function initAudio(){
     analyser=audioCtx.createAnalyser();
     analyser.fftSize=FFT;
     analyser.smoothingTimeConstant=0.65;
+    // analyser → destination stays connected permanently
     analyser.connect(audioCtx.destination);
     freqData=new Float32Array(analyser.frequencyBinCount);
     timeData=new Float32Array(FFT/2);
-    // Create persistent Audio element + MediaElementSource (one-time per AudioContext)
+    // Create persistent Audio element
     mediaEl=new Audio();
     mediaEl.preload='auto';
-    mediaSource=audioCtx.createMediaElementSource(mediaEl);
-    mediaSource.connect(analyser);
-    // Attach listeners once
-    mediaEl.addEventListener('loadedmetadata',()=>{
-      if(Number.isFinite(mediaEl.duration))duration=mediaEl.duration;
-      updateDashboard();
-    });
-    mediaEl.addEventListener('durationchange',()=>{
-      if(Number.isFinite(mediaEl.duration))duration=mediaEl.duration;
-    });
-    mediaEl.addEventListener('ended',()=>{pauseOffset=0;isPlaying=!1;updatePlayIcon()});
-    mediaEl.addEventListener('error',()=>{
-      const code=mediaEl.error?.code;
-      showToast(`audio stream failed${code?`: ${code}`:''}`,!0);
-    });
   }
   if(audioCtx.state==='suspended')await audioCtx.resume();
 }
@@ -390,15 +376,13 @@ async function initAudio(){
 function cleanupCurrentAudio(){
   if(source){try{source.stop()}catch(e){}try{source.disconnect()}catch(e){}source=null}
   if(mediaEl){try{mediaEl.pause()}catch(e){}mediaEl.src='';mediaEl.load()}
+  // Don't null out mediaEl/mediaSource - createMediaElementSource is one-time per AudioContext
   isPlaying=false;updatePlayIcon();
 }
 
 async function loadFile(file){
   await initAudio();
-  // Disconnect mediaSource temporarily so buffer source can use analyser
-  try{mediaSource.disconnect()}catch(e){}
-  if(source){try{source.stop()}catch(e){}try{source.disconnect()}catch(e){}source=null}
-  if(mediaEl){try{mediaEl.pause()}catch(e){}mediaEl.src='';mediaEl.load()}
+  cleanupCurrentAudio();
   const buf=await file.arrayBuffer();
   audioBuffer=await audioCtx.decodeAudioData(buf);
   duration=audioBuffer.duration;
@@ -419,15 +403,28 @@ async function loadUrl(url,title,artist,srcLabel){
   await initAudio();
   const isNeteaseOuter=url.includes('music.163.com/song/media/outer/url');
   const audioSrc=url.startsWith('http://')||url.startsWith('https://')?(isNeteaseOuter?url:audioProxy(url)):url;
-  // Disconnect buffer source; ensure mediaSource is connected
-  if(source){try{source.stop()}catch(e){}try{source.disconnect()}catch(e){}source=null}
+  cleanupCurrentAudio();
   audioBuffer=null;
-  // Reconnect mediaSource (may have been disconnected by loadFile)
-  try{mediaSource.disconnect()}catch(e){}
-  try{analyser.disconnect()}catch(e){}
-  try{mediaSource.connect(analyser);analyser.connect(audioCtx.destination)}catch(e){}
-  // Set crossOrigin before src
-  if(!isNeteaseOuter&&!mediaEl.crossOrigin)mediaEl.crossOrigin='anonymous';
+  // Reuse existing mediaEl+mediaSource or create them (one-time per AudioContext)
+  if(!mediaEl){
+    mediaEl=new Audio();
+    if(!isNeteaseOuter)mediaEl.crossOrigin='anonymous';
+    mediaEl.preload='auto';
+    mediaEl.addEventListener('loadedmetadata',()=>{
+      if(Number.isFinite(mediaEl.duration))duration=mediaEl.duration;
+      updateDashboard();
+    });
+    mediaEl.addEventListener('durationchange',()=>{
+      if(Number.isFinite(mediaEl.duration))duration=mediaEl.duration;
+    });
+    mediaEl.addEventListener('ended',()=>{pauseOffset=0;isPlaying=!1;updatePlayIcon()});
+    mediaEl.addEventListener('error',()=>{
+      const code=mediaEl.error?.code;
+      showToast(`audio stream failed${code?`: ${code}`:''}`,!0);
+    });
+    mediaSource=audioCtx.createMediaElementSource(mediaEl);
+    mediaSource.connect(analyser);
+  }
   mediaEl.src=audioSrc;
   duration=0;
   songTitle.textContent=title;songArtist.textContent=artist;
