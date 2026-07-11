@@ -370,10 +370,13 @@ function cleanupCurrentAudio(){
 
 async function loadFile(file){
   await initAudio();
-  cleanupCurrentAudio();
+  // Disconnect mediaSource from analyser so buffer source is the only input
+  if(mediaSource){try{mediaSource.disconnect()}catch(e){}}
+  if(source){try{source.stop()}catch(e){}try{source.disconnect()}catch(e){}source=null}
+  if(mediaEl){try{mediaEl.pause()}catch(e){}mediaEl.src='';mediaEl.load()}
   const buf=await file.arrayBuffer();
   audioBuffer=await audioCtx.decodeAudioData(buf);
-  duration=audioBuffer.duration;mediaEl=null;
+  duration=audioBuffer.duration;
   const name=file.name.replace(/\.[^/.]+$/,'');
   const pts=name.split(/[-–—]+/);
   songTitle.textContent=pts.length>=2?(pts[1].trim()||pts[0].trim()):name;
@@ -415,7 +418,8 @@ async function loadUrl(url,title,artist,srcLabel){
       mediaSource.connect(analyser);
     }
   }else if(mediaSource){
-    // Reconnect if it was disconnected by loadFile's cleanup
+    // Reconnect: disconnect first to avoid InvalidStateError if already connected
+    try{mediaSource.disconnect()}catch(e){}
     try{mediaSource.connect(analyser)}catch(e){}
   }
   mediaEl.src=audioSrc;
