@@ -444,6 +444,7 @@ async function loadUrl(url,title,artist,srcLabel){
   }
 }
 
+// ─ Buffer playback (for local files) ──
 function playFromBuffer(){
   if(source){try{source.stop()}catch(e){}source.disconnect()}
   source=audioCtx.createBufferSource();source.buffer=audioBuffer;source.connect(analyser);
