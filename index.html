@@ -424,7 +424,8 @@ async function loadUrl(url,title,artist,srcLabel){
   audioBuffer=null;
   // Reconnect mediaSource (may have been disconnected by loadFile)
   try{mediaSource.disconnect()}catch(e){}
-  try{mediaSource.connect(analyser)}catch(e){}
+  try{analyser.disconnect()}catch(e){}
+  try{mediaSource.connect(analyser);analyser.connect(audioCtx.destination)}catch(e){}
   // Set crossOrigin before src
   if(!isNeteaseOuter&&!mediaEl.crossOrigin)mediaEl.crossOrigin='anonymous';
   mediaEl.src=audioSrc;
