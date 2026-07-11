@@ -363,8 +363,8 @@ async function initAudio(){
 
 function cleanupCurrentAudio(){
   if(source){try{source.stop()}catch(e){}try{source.disconnect()}catch(e){}source=null}
-  if(mediaEl){try{mediaEl.pause()}catch(e){}mediaEl.src='';mediaEl.load();mediaEl=null}
-  if(mediaSource){try{mediaSource.disconnect()}catch(e){}mediaSource=null}
+  if(mediaEl){try{mediaEl.pause()}catch(e){}mediaEl.src='';mediaEl.load()}
+  // Keep mediaEl + mediaSource alive: createMediaElementSource is one-time per AudioContext
   isPlaying=false;updatePlayIcon();
 }
 
@@ -391,7 +391,7 @@ async function loadUrl(url,title,artist,srcLabel){
   await initAudio();
   const isNeteaseOuter=url.includes('music.163.com/song/media/outer/url');
   const audioSrc=url.startsWith('http://')||url.startsWith('https://')?(isNeteaseOuter?url:audioProxy(url)):url;
-  // Clean up buffer source only; keep mediaEl + mediaSource alive (createMediaElementSource is one-time per AudioContext)
+  // Disconnect buffer source only; keep mediaEl + mediaSource alive (createMediaElementSource is one-time per AudioContext)
   if(source){try{source.stop()}catch(e){}try{source.disconnect()}catch(e){}source=null}
   audioBuffer=null;
   if(!mediaEl){
@@ -414,6 +414,9 @@ async function loadUrl(url,title,artist,srcLabel){
       mediaSource=audioCtx.createMediaElementSource(mediaEl);
       mediaSource.connect(analyser);
     }
+  }else if(mediaSource){
+    // Reconnect if it was disconnected by loadFile's cleanup
+    try{mediaSource.connect(analyser)}catch(e){}
   }
   mediaEl.src=audioSrc;
   duration=0;
