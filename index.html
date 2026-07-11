@@ -362,14 +362,11 @@ async function initAudio(){
     analyser=audioCtx.createAnalyser();
     analyser.fftSize=FFT;
     analyser.smoothingTimeConstant=0.65;
-    analyser.connect(audioCtx.destination);
     freqData=new Float32Array(analyser.frequencyBinCount);
     timeData=new Float32Array(FFT/2);
-    // Create mediaEl + mediaSource once (createMediaElementSource is one-time per AudioContext)
+    // Create persistent Audio element (createMediaElementSource will be called on first loadUrl)
     mediaEl=new Audio();
     mediaEl.preload='auto';
-    mediaSource=audioCtx.createMediaElementSource(mediaEl);
-    mediaSource.connect(analyser);
   }
   if(audioCtx.state==='suspended')await audioCtx.resume();
 }
@@ -377,13 +374,12 @@ async function initAudio(){
 function cleanupCurrentAudio(){
   if(source){try{source.stop()}catch(e){}try{source.disconnect()}catch(e){}source=null}
   if(mediaEl){try{mediaEl.pause()}catch(e){}mediaEl.src='';mediaEl.load()}
-  // Keep mediaEl + mediaSource alive: createMediaElementSource is one-time per AudioContext
   isPlaying=false;updatePlayIcon();
 }
 
 async function loadFile(file){
   await initAudio();
-  // Disconnect mediaSource from analyser so buffer source is the only input
+  // Disconnect mediaSource so buffer source is the only input to analyser
   if(mediaSource){try{mediaSource.disconnect()}catch(e){}}
   if(source){try{source.stop()}catch(e){}try{source.disconnect()}catch(e){}source=null}
   if(mediaEl){try{mediaEl.pause()}catch(e){}mediaEl.src='';mediaEl.load()}
@@ -407,10 +403,11 @@ async function loadUrl(url,title,artist,srcLabel){
   await initAudio();
   const isNeteaseOuter=url.includes('music.163.com/song/media/outer/url');
   const audioSrc=url.startsWith('http://')||url.startsWith('https://')?(isNeteaseOuter?url:audioProxy(url)):url;
-  // Disconnect buffer source; mediaEl + mediaSource are created once in initAudio
+  // Disconnect buffer source
   if(source){try{source.stop()}catch(e){}try{source.disconnect()}catch(e){}source=null}
   audioBuffer=null;
-  if(!mediaEl.crossOrigin&&!isNeteaseOuter)mediaEl.crossOrigin='anonymous';
+  // Set crossOrigin before src (needed for CORS audio streams)
+  if(!isNeteaseOuter&&!mediaEl.crossOrigin)mediaEl.crossOrigin='anonymous';
   if(!mediaEl._listenersAttached){
     mediaEl._listenersAttached=true;
     mediaEl.addEventListener('loadedmetadata',()=>{
@@ -426,10 +423,18 @@ async function loadUrl(url,title,artist,srcLabel){
       showToast(`audio stream failed${code?`: ${code}`:''}`,!0);
     });
   }
-  // Ensure mediaSource is connected (may have been disconnected by loadFile)
-  try{mediaSource.disconnect()}catch(e){}
-  try{mediaSource.connect(analyser)}catch(e){}
+  // Set src first, then create mediaSource (must be after src is set)
   mediaEl.src=audioSrc;
+  // Create mediaSource on first URL load (createMediaElementSource is one-time per AudioContext)
+  if(!mediaSource){
+    mediaSource=audioCtx.createMediaElementSource(mediaEl);
+    mediaSource.connect(analyser);
+    analyser.connect(audioCtx.destination);
+  }else{
+    // Reconnect if it was disconnected by loadFile
+    try{mediaSource.disconnect()}catch(e){}
+    try{mediaSource.connect(analyser)}catch(e){}
+  }
   duration=0;
   songTitle.textContent=title;songArtist.textContent=artist;
   pauseOffset=0;
