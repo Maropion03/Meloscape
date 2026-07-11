@@ -357,7 +357,20 @@ let freqData,timeData;
 const FFT=2048;
 
 async function initAudio(){
-  if(!audioCtx){audioCtx=new(window.AudioContext||window.webkitAudioContext)();analyser=audioCtx.createAnalyser();analyser.fftSize=FFT;analyser.smoothingTimeConstant=0.65;analyser.connect(audioCtx.destination);freqData=new Float32Array(analyser.frequencyBinCount);timeData=new Float32Array(FFT/2)}
+  if(!audioCtx){
+    audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    analyser=audioCtx.createAnalyser();
+    analyser.fftSize=FFT;
+    analyser.smoothingTimeConstant=0.65;
+    analyser.connect(audioCtx.destination);
+    freqData=new Float32Array(analyser.frequencyBinCount);
+    timeData=new Float32Array(FFT/2);
+    // Create mediaEl + mediaSource once (createMediaElementSource is one-time per AudioContext)
+    mediaEl=new Audio();
+    mediaEl.preload='auto';
+    mediaSource=audioCtx.createMediaElementSource(mediaEl);
+    mediaSource.connect(analyser);
+  }
   if(audioCtx.state==='suspended')await audioCtx.resume();
 }
 
@@ -394,13 +407,12 @@ async function loadUrl(url,title,artist,srcLabel){
   await initAudio();
   const isNeteaseOuter=url.includes('music.163.com/song/media/outer/url');
   const audioSrc=url.startsWith('http://')||url.startsWith('https://')?(isNeteaseOuter?url:audioProxy(url)):url;
-  // Disconnect buffer source only; keep mediaEl + mediaSource alive (createMediaElementSource is one-time per AudioContext)
+  // Disconnect buffer source; mediaEl + mediaSource are created once in initAudio
   if(source){try{source.stop()}catch(e){}try{source.disconnect()}catch(e){}source=null}
   audioBuffer=null;
-  if(!mediaEl){
-    mediaEl=new Audio();
-    if(!isNeteaseOuter)mediaEl.crossOrigin='anonymous';
-    mediaEl.preload='auto';
+  if(!mediaEl.crossOrigin&&!isNeteaseOuter)mediaEl.crossOrigin='anonymous';
+  if(!mediaEl._listenersAttached){
+    mediaEl._listenersAttached=true;
     mediaEl.addEventListener('loadedmetadata',()=>{
       if(Number.isFinite(mediaEl.duration))duration=mediaEl.duration;
       updateDashboard();
@@ -413,15 +425,10 @@ async function loadUrl(url,title,artist,srcLabel){
       const code=mediaEl.error?.code;
       showToast(`audio stream failed${code?`: ${code}`:''}`,!0);
     });
-    if(!isNeteaseOuter){
-      mediaSource=audioCtx.createMediaElementSource(mediaEl);
-      mediaSource.connect(analyser);
-    }
-  }else if(mediaSource){
-    // Reconnect: disconnect first to avoid InvalidStateError if already connected
-    try{mediaSource.disconnect()}catch(e){}
-    try{mediaSource.connect(analyser)}catch(e){}
   }
+  // Ensure mediaSource is connected (may have been disconnected by loadFile)
+  try{mediaSource.disconnect()}catch(e){}
+  try{mediaSource.connect(analyser)}catch(e){}
   mediaEl.src=audioSrc;
   duration=0;
   songTitle.textContent=title;songArtist.textContent=artist;
