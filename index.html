@@ -362,9 +362,10 @@ async function initAudio(){
     analyser=audioCtx.createAnalyser();
     analyser.fftSize=FFT;
     analyser.smoothingTimeConstant=0.65;
+    analyser.connect(audioCtx.destination);
     freqData=new Float32Array(analyser.frequencyBinCount);
     timeData=new Float32Array(FFT/2);
-    // Create persistent Audio element (createMediaElementSource will be called on first loadUrl)
+    // Create persistent Audio element once (createMediaElementSource is one-time per AudioContext)
     mediaEl=new Audio();
     mediaEl.preload='auto';
   }
@@ -403,13 +404,15 @@ async function loadUrl(url,title,artist,srcLabel){
   await initAudio();
   const isNeteaseOuter=url.includes('music.163.com/song/media/outer/url');
   const audioSrc=url.startsWith('http://')||url.startsWith('https://')?(isNeteaseOuter?url:audioProxy(url)):url;
-  // Disconnect buffer source
+  // Disconnect buffer source only; reuse mediaEl + mediaSource
   if(source){try{source.stop()}catch(e){}try{source.disconnect()}catch(e){}source=null}
   audioBuffer=null;
-  // Set crossOrigin before src (needed for CORS audio streams)
-  if(!isNeteaseOuter&&!mediaEl.crossOrigin)mediaEl.crossOrigin='anonymous';
-  if(!mediaEl._listenersAttached){
-    mediaEl._listenersAttached=true;
+  // Create mediaSource on first URL load (one-time per AudioContext)
+  if(!mediaSource){
+    if(!isNeteaseOuter)mediaEl.crossOrigin='anonymous';
+    mediaSource=audioCtx.createMediaElementSource(mediaEl);
+    mediaSource.connect(analyser);
+    // Attach listeners once
     mediaEl.addEventListener('loadedmetadata',()=>{
       if(Number.isFinite(mediaEl.duration))duration=mediaEl.duration;
       updateDashboard();
@@ -422,19 +425,12 @@ async function loadUrl(url,title,artist,srcLabel){
       const code=mediaEl.error?.code;
       showToast(`audio stream failed${code?`: ${code}`:''}`,!0);
     });
-  }
-  // Set src first, then create mediaSource (must be after src is set)
-  mediaEl.src=audioSrc;
-  // Create mediaSource on first URL load (createMediaElementSource is one-time per AudioContext)
-  if(!mediaSource){
-    mediaSource=audioCtx.createMediaElementSource(mediaEl);
-    mediaSource.connect(analyser);
-    analyser.connect(audioCtx.destination);
   }else{
     // Reconnect if it was disconnected by loadFile
     try{mediaSource.disconnect()}catch(e){}
     try{mediaSource.connect(analyser)}catch(e){}
   }
+  mediaEl.src=audioSrc;
   duration=0;
   songTitle.textContent=title;songArtist.textContent=artist;
   pauseOffset=0;
