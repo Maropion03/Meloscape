@@ -379,7 +379,8 @@ async function initAudio(){
     mediaEl.addEventListener('ended',()=>{pauseOffset=0;isPlaying=!1;updatePlayIcon()});
     mediaEl.addEventListener('error',()=>{
       const code=mediaEl.error?.code;
-      showToast(`audio stream failed${code?`: ${code}`:''}`,!0);
+      const desc={1:'aborted',2:'network error',3:'decode error',4:'source not supported'}[code]||'unknown';
+      showToast(`audio stream failed: ${desc}${code?` (${code})`:''}`,!0);
     });
   }
   if(audioCtx.state==='suspended')await audioCtx.resume();
@@ -450,7 +451,14 @@ async function loadUrl(url,title,artist,srcLabel){
     isPlaying=!0;updatePlayIcon();
   }catch(err){
     isPlaying=false;updatePlayIcon();
-    throw new UserFacingError('playback failed, please try another link',err.message,'media_play_failed');
+    // Autoplay blocked: the click gesture's transient activation expired while
+    // we were fetching metadata. The song is fully loaded — just ask the user
+    // to press play instead of reporting a bogus link failure.
+    if(err&&err.name==='NotAllowedError'){
+      showToast('autoplay blocked by browser — press play to start');
+      return;
+    }
+    throw new UserFacingError(`playback failed (${err&&err.name||'error'})`,err.message||'','media_play_failed');
   }
 }
 
