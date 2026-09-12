@@ -67,7 +67,7 @@ function fetch163SongTitle(songId) {
 
 export default async function handler(req, res) {
   const songId = req.query?.id;
-  if (!songId) {
+  if (!songId || !/^\d+$/.test(String(songId))) {
     res.status(400).json({ error: 'Missing ?id= parameter' });
     return;
   }

@@ -6,8 +6,17 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
-const PORT = 8765;
+const PORT = Number(process.env.PORT || 8765);
 const STATIC_DIR = __dirname;
+const ALLOWED_PROXY_HOSTS = [
+  'netease-cloud-music-api-alpha-dun.vercel.app',
+  'music.163.com',
+  'c.y.qq.com',
+  'u.y.qq.com',
+  'y.qq.com',
+  'www.kugou.com',
+];
+const ALLOWED_AUDIO_HOST_SUFFIXES = ['qq.com', 'music.163.com', '163.com', 'music.126.net', 'kugou.com'];
 
 // MIME types
 const MIME = {
@@ -26,8 +35,57 @@ const MIME = {
   '.ogg': 'audio/ogg',
 };
 
+function hostMatches(hostname, allowed) {
+  const host = hostname.toLowerCase();
+  return allowed.some((domain) => host === domain || host.endsWith(`.${domain}`));
+}
+
+function isSupportedProtocol(protocol) {
+  return protocol === 'https:' || protocol === 'http:';
+}
+
+function isBlockedHostname(hostname) {
+  const host = hostname.toLowerCase();
+  return host === 'localhost' ||
+    host.endsWith('.localhost') ||
+    host === '127.0.0.1' ||
+    host === '::1' ||
+    /^10\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[0-1])\./.test(host) ||
+    /^169\.254\./.test(host);
+}
+
+function isAllowedProxyPath(hostname, pathname) {
+  const host = hostname.toLowerCase();
+  if (host === 'netease-cloud-music-api-alpha-dun.vercel.app') {
+    return ['/song/detail', '/song/url', '/search', '/lyric'].includes(pathname);
+  }
+  if (host === 'c.y.qq.com') return pathname === '/soso/fcgi-bin/client_search_cp';
+  if (host === 'u.y.qq.com') return pathname === '/cgi-bin/musicu.fcg';
+  if (host === 'www.kugou.com') return pathname === '/yy/index.php';
+  if (host === 'music.163.com') return pathname === '/song';
+  return false;
+}
+
 function proxyRequest(targetUrl, req, res) {
-  const parsed = new URL(targetUrl);
+  let parsed;
+  try {
+    parsed = new URL(targetUrl);
+  } catch {
+    res.writeHead(400, {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+    });
+    return res.end(JSON.stringify({ error: 'invalid_url' }));
+  }
+  if (!isSupportedProtocol(parsed.protocol) || isBlockedHostname(parsed.hostname) || !hostMatches(parsed.hostname, ALLOWED_PROXY_HOSTS) || !isAllowedProxyPath(parsed.hostname, parsed.pathname)) {
+    res.writeHead(403, {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+    });
+    return res.end(JSON.stringify({ error: 'forbidden_target' }));
+  }
 
   const options = {
     hostname: parsed.hostname,
@@ -42,10 +100,10 @@ function proxyRequest(targetUrl, req, res) {
   };
 
   // Platform-specific headers
-  if (parsed.hostname.includes('qq.com')) {
+  if (parsed.hostname === 'c.y.qq.com' || parsed.hostname === 'u.y.qq.com' || parsed.hostname === 'y.qq.com' || parsed.hostname.endsWith('.y.qq.com')) {
     options.headers['Referer'] = 'https://y.qq.com';
   }
-  if (parsed.hostname.includes('163.com')) {
+  if (parsed.hostname === 'music.163.com') {
     options.headers['Referer'] = 'https://music.163.com';
   }
 
@@ -53,17 +111,27 @@ function proxyRequest(targetUrl, req, res) {
 
   const proxyReq = client.request(options, (proxyRes) => {
     res.writeHead(proxyRes.statusCode, {
-      ...proxyRes.headers,
+      ...(proxyRes.headers['content-type'] ? { 'Content-Type': proxyRes.headers['content-type'] } : {}),
+      ...(proxyRes.headers['cache-control'] ? { 'Cache-Control': proxyRes.headers['cache-control'] } : {}),
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
       'Access-Control-Allow-Headers': '*',
     });
     proxyRes.pipe(res);
   });
 
   proxyReq.on('error', (err) => {
-    res.writeHead(502);
-    res.end(JSON.stringify({ error: 'proxy_error', message: err.message }));
+    // Upstream may fail after headers were already sent (mid-body socket error
+    // or timeout). Writing headers again would throw and crash the process.
+    if (!res.headersSent) {
+      res.writeHead(502);
+      res.end(JSON.stringify({ error: 'proxy_error' }));
+    } else {
+      res.destroy();
+    }
+  });
+  proxyReq.setTimeout(10000, () => {
+    proxyReq.destroy(new Error('upstream timeout'));
   });
 
   proxyReq.end();
@@ -154,6 +222,10 @@ const server = http.createServer((req, res) => {
 
   // API proxy: /api/proxy?url=ENCODED_URL
   if (url.pathname === '/api/proxy') {
+    if (req.method !== 'GET') {
+      res.writeHead(405, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'method_not_allowed' }));
+    }
     const targetUrl = url.searchParams.get('url');
     if (!targetUrl) {
       res.writeHead(400);
@@ -181,22 +253,76 @@ const server = http.createServer((req, res) => {
 
   // Audio proxy: /api/audio?url=ENCODED_AUDIO_URL (for QQ CDN audio with CORS)
   if (url.pathname === '/api/audio') {
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      res.writeHead(405, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'method_not_allowed' }));
+    }
     const targetUrl = url.searchParams.get('url');
     if (!targetUrl) {
       res.writeHead(400);
       return res.end('Missing ?url= parameter');
     }
-    const parsed = new URL(targetUrl);
-    const client = parsed.protocol === 'https:' ? https : http;
-    client.get(targetUrl, { headers: { 'Referer': 'https://y.qq.com' } }, (proxyRes) => {
-      res.writeHead(proxyRes.statusCode, {
-        'Content-Type': proxyRes.headers['content-type'] || 'audio/mpeg',
-        'Content-Length': proxyRes.headers['content-length'],
-        'Accept-Ranges': 'bytes',
+    let parsed;
+    try {
+      parsed = new URL(targetUrl);
+    } catch {
+      res.writeHead(400, {
+        'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
       });
-      proxyRes.pipe(res);
-    }).on('error', () => { res.writeHead(502); res.end('proxy error'); });
+      return res.end(JSON.stringify({ error: 'invalid_url' }));
+    }
+    if (!isSupportedProtocol(parsed.protocol) || isBlockedHostname(parsed.hostname) || !hostMatches(parsed.hostname, ALLOWED_AUDIO_HOST_SUFFIXES)) {
+      res.writeHead(403, {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      });
+      return res.end(JSON.stringify({ error: 'forbidden_target' }));
+    }
+    const is163AudioHost = parsed.hostname === 'music.163.com' || parsed.hostname.endsWith('.music.163.com') || parsed.hostname === '163.com' || parsed.hostname.endsWith('.163.com') || parsed.hostname === 'music.126.net' || parsed.hostname.endsWith('.music.126.net') || parsed.hostname.endsWith('.126.net');
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      'Referer': is163AudioHost ? 'https://music.163.com/' : 'https://y.qq.com/',
+    };
+    if (req.headers.range) headers.Range = req.headers.range;
+    const requestAudio = (currentUrl, redirectsLeft = 3) => {
+      const currentParsed = new URL(currentUrl);
+      if (!isSupportedProtocol(currentParsed.protocol) || isBlockedHostname(currentParsed.hostname) || !hostMatches(currentParsed.hostname, ALLOWED_AUDIO_HOST_SUFFIXES)) {
+        res.writeHead(403, {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        });
+        return res.end(JSON.stringify({ error: 'forbidden_target' }));
+      }
+      const client = currentParsed.protocol === 'https:' ? https : http;
+      const upstreamReq = client.request(currentUrl, { method: req.method, headers }, (proxyRes) => {
+        const location = proxyRes.headers.location;
+        if ([301, 302, 303, 307, 308].includes(proxyRes.statusCode) && location && redirectsLeft > 0) {
+          proxyRes.resume();
+          requestAudio(new URL(location, currentUrl).toString(), redirectsLeft - 1);
+          return;
+        }
+      res.writeHead(proxyRes.statusCode, {
+        'Content-Type': proxyRes.headers['content-type'] || 'audio/mpeg',
+        ...(proxyRes.headers['content-length'] ? { 'Content-Length': proxyRes.headers['content-length'] } : {}),
+        ...(proxyRes.headers['content-range'] ? { 'Content-Range': proxyRes.headers['content-range'] } : {}),
+        ...(proxyRes.headers['accept-ranges'] ? { 'Accept-Ranges': proxyRes.headers['accept-ranges'] } : {}),
+        'Access-Control-Allow-Origin': '*',
+      });
+      if (req.method === 'HEAD') res.end();
+      else proxyRes.pipe(res);
+      }).on('error', () => {
+        if (!res.headersSent) {
+          res.writeHead(502);
+          res.end('proxy error');
+        } else {
+          res.destroy();
+        }
+      });
+      upstreamReq.setTimeout(0); // media streams idle under browser backpressure — never kill on inactivity
+      upstreamReq.end();
+    };
+    requestAudio(targetUrl);
     return;
   }
 

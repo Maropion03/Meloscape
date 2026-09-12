@@ -391,6 +391,19 @@ function cleanupCurrentAudio(){
   isPlaying=false;updatePlayIcon();
 }
 
+function playFromBuffer(){
+  if(!audioBuffer)return;
+  if(source){try{source.stop()}catch(e){}try{source.disconnect()}catch(e){}source=null}
+  if(mediaEl){try{mediaEl.pause()}catch(e){}}
+  source=audioCtx.createBufferSource();
+  source.buffer=audioBuffer;
+  source.connect(analyser); // analyser → destination already connected in initAudio
+  source.onended=()=>{if(isPlaying){pauseOffset=0;isPlaying=false;updatePlayIcon()}};
+  startTime=audioCtx.currentTime-pauseOffset;
+  source.start(0,pauseOffset);
+  isPlaying=true;updatePlayIcon();
+}
+
 async function loadFile(file){
   await initAudio();
   cleanupCurrentAudio();
@@ -412,12 +425,14 @@ async function loadFile(file){
 
 async function loadUrl(url,title,artist,srcLabel){
   await initAudio();
-  const isNeteaseOuter=url.includes('music.163.com/song/media/outer/url');
-  const audioSrc=url.startsWith('http://')||url.startsWith('https://')?(isNeteaseOuter?url:audioProxy(url)):url;
+  // Route ALL remote audio through the same-origin proxy: the server follows
+  // redirects and attaches CORS headers, so the media element is never tainted
+  // and https pages never hit mixed-content blocks.
+  const audioSrc=url.startsWith('http://')||url.startsWith('https://')?audioProxy(url):url;
   cleanupCurrentAudio();
   audioBuffer=null;
-  // Set crossOrigin BEFORE src
-  if(!isNeteaseOuter&&!mediaEl.crossOrigin)mediaEl.crossOrigin='anonymous';
+  // Set crossOrigin BEFORE src (proxy responds with ACAO:*, so media stays CORS-clean)
+  if(!mediaEl.crossOrigin)mediaEl.crossOrigin='anonymous';
   // Set src BEFORE createMediaElementSource (required for proper audio routing)
   mediaEl.src=audioSrc;
   // Create mediaSource on first URL load (one-time per AudioContext)
@@ -1058,7 +1073,9 @@ function renderPreset(preset,energy,centroid,intensity){
 }
 
 // ── Main render loop ──
+let drawErrLogged=false;
 function draw(){
+  try{
   analyzeFrame();if(isPlaying)detectBeat();
   beatFlash*=0.85;beatTimer=Math.max(0,beatTimer-1);
 
@@ -1091,6 +1108,10 @@ function draw(){
   // Update structure bar
   updateStructureBar();
   updateLyrics();
+  }catch(err){
+    // A single bad frame must not kill the visualizer — log once and keep looping
+    if(!drawErrLogged){drawErrLogged=true;console.error('draw loop error',err)}
+  }
 
   requestAnimationFrame(draw);
 }
