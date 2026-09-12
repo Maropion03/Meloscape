@@ -1417,6 +1417,18 @@ async function neteaseGetUrl(songId){
   return `https://music.163.com/song/media/outer/url?id=${songId}.mp3`;
 }
 
+// Probe a candidate audio URL through the proxy: NetEase serves an HTML stub
+// page (200 + text/html) for songs it can't actually stream, which the media
+// element then rejects with NotSupportedError. Check content-type up front so
+// we can fall back to QQ instead of failing at play().
+async function probeAudioUrl(url){
+  try{
+    const r=await fetch(audioProxy(url),{method:'HEAD'});
+    const ct=r.headers.get('content-type')||'';
+    return r.ok&&/^audio\//.test(ct);
+  }catch(e){return false}
+}
+
 async function resolveAndPlay(url, shareText=''){
   const parsed=parseMusicUrl(url);if(!parsed)throw new Error('unsupported music platform link');
   songPanel.style.opacity='1';
@@ -1472,7 +1484,7 @@ async function resolveAndPlay(url, shareText=''){
     loadLyrics(parsed.id);
     showToast('trying NetEase direct link...');
     const neteaseUrl=await neteaseGetUrl(parsed.id);
-    if(neteaseUrl){
+    if(neteaseUrl&&await probeAudioUrl(neteaseUrl)){
       showToast('NetEase playing: '+songname);
       await loadUrl(neteaseUrl,songname,singer,label);
     }else{
